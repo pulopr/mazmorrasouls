@@ -1,0 +1,125 @@
+"""Carga de niveles desde `data/levels/*.txt`.
+
+Un nivel es una cuadrícula de tiles. Los caracteres que representan
+entidades (`@`, `B`, `s`) no son tiles: marcan el punto donde nace algo y
+el tile que queda debajo es suelo.
+
+Este módulo es lógica pura: no dibuja nada ni conoce pygame.
+"""
+
+from pathlib import Path
+
+# --- Caracteres del formato de mapa --------------------------------------
+
+CHAR_WALL = "#"
+CHAR_FLOOR = "."
+CHAR_PLAYER_START = "@"
+CHAR_BONFIRE = "B"
+CHAR_SKELETON = "s"
+CHAR_DOOR = "+"
+
+# Tiles que de verdad ocupan la cuadrícula, con su `sprite_id` asociado.
+# El renderer traduce ese id a un glifo y un color (hoy) o a una imagen
+# (más adelante); la lógica nunca decide el aspecto.
+TILE_SPRITES = {
+    CHAR_WALL: "wall",
+    CHAR_FLOOR: "floor",
+    CHAR_DOOR: "door",
+}
+
+# Caracteres de entidad y el tile de suelo que dejan en su lugar.
+ENTITY_CHARS = (CHAR_PLAYER_START, CHAR_BONFIRE, CHAR_SKELETON)
+
+# Tiles que bloquean el paso.
+SOLID_TILES = (CHAR_WALL, CHAR_DOOR)
+
+
+class LevelError(Exception):
+    """El archivo de mapa no cumple el formato esperado."""
+
+
+class Level:
+    """Un mapa cargado: rejilla de tiles y puntos de aparición.
+
+    Atributos:
+        tiles: lista de filas; cada fila es una lista de caracteres de tile.
+        width, height: dimensiones en tiles.
+        player_start: coordenadas (x, y) en tiles del inicio del jugador.
+        bonfires: lista de coordenadas (x, y) de hogueras.
+        enemy_spawns: lista de (x, y, sprite_id) de enemigos.
+    """
+
+    def __init__(self, tiles, player_start, bonfires, enemy_spawns):
+        self.tiles = tiles
+        self.height = len(tiles)
+        self.width = len(tiles[0]) if tiles else 0
+        self.player_start = player_start
+        self.bonfires = bonfires
+        self.enemy_spawns = enemy_spawns
+
+    # --- Carga ------------------------------------------------------------
+
+    @classmethod
+    def from_string(cls, text):
+        """Construye un nivel a partir del contenido de un archivo de mapa."""
+        # Se ignoran las líneas vacías del final para que un salto de línea
+        # sobrante no cree una fila fantasma.
+        rows = [line.rstrip("\n\r") for line in text.splitlines()]
+        while rows and not rows[-1].strip():
+            rows.pop()
+
+        if not rows:
+            raise LevelError("El mapa está vacío")
+
+        widths = {len(row) for row in rows}
+        if len(widths) != 1:
+            raise LevelError(f"Todas las filas deben medir lo mismo; se encontraron anchos {sorted(widths)}")
+
+        tiles = []
+        player_start = None
+        bonfires = []
+        enemy_spawns = []
+
+        for y, row in enumerate(rows):
+            tile_row = []
+            for x, char in enumerate(row):
+                if char == CHAR_PLAYER_START:
+                    if player_start is not None:
+                        raise LevelError("El mapa tiene más de un inicio de jugador '@'")
+                    player_start = (x, y)
+                elif char == CHAR_BONFIRE:
+                    bonfires.append((x, y))
+                elif char == CHAR_SKELETON:
+                    enemy_spawns.append((x, y, "skeleton"))
+                elif char not in TILE_SPRITES:
+                    raise LevelError(f"Carácter desconocido {char!r} en ({x}, {y})")
+
+                # Las entidades dejan suelo debajo.
+                tile_row.append(CHAR_FLOOR if char in ENTITY_CHARS else char)
+            tiles.append(tile_row)
+
+        if player_start is None:
+            raise LevelError("El mapa no tiene inicio de jugador '@'")
+
+        return cls(tiles, player_start, bonfires, enemy_spawns)
+
+    @classmethod
+    def load(cls, path):
+        """Carga un nivel desde una ruta de archivo."""
+        return cls.from_string(Path(path).read_text(encoding="utf-8"))
+
+    # --- Consultas --------------------------------------------------------
+
+    def tile_at(self, x, y):
+        """Carácter de tile en (x, y); muro si se sale del mapa."""
+        if 0 <= x < self.width and 0 <= y < self.height:
+            return self.tiles[y][x]
+        return CHAR_WALL
+
+    def tile_sprite_at(self, x, y):
+        """`sprite_id` del tile en (x, y), para que lo traduzca el renderer."""
+        return TILE_SPRITES[self.tile_at(x, y)]
+
+    def is_solid(self, x, y):
+        """¿Bloquea el paso el tile (x, y)? Fuera del mapa cuenta como muro."""
+        return self.tile_at(x, y) in SOLID_TILES

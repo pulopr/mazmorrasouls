@@ -64,3 +64,39 @@ class Stamina:
         """Deja el depósito lleno (descansar en una hoguera, Fase 5)."""
         self.current = self.maximum
         self.delay_left = 0.0
+
+
+class Health:
+    """Puntos de vida de una criatura.
+
+    Más simple que la estamina: aquí no hay recuperación automática —la
+    vida se recobra con los frascos de Estus o descansando en una hoguera,
+    y eso llega en la Fase 5—.
+    """
+
+    def __init__(self, maximum):
+        self.maximum = float(maximum)
+        self.current = float(maximum)
+
+    @property
+    def ratio(self):
+        """Fracción de vida restante, de 0 a 1."""
+        if self.maximum <= 0:
+            return 0.0
+        return self.current / self.maximum
+
+    @property
+    def is_alive(self):
+        return self.current > 0
+
+    def take_damage(self, amount):
+        """Resta daño sin bajar de 0. Devuelve el daño aplicado de verdad."""
+        dealt = min(self.current, max(0.0, amount))
+        self.current -= dealt
+        return dealt
+
+    def heal(self, amount):
+        """Cura sin pasar del máximo. Devuelve lo que se ha curado."""
+        healed = min(self.maximum - self.current, max(0.0, amount))
+        self.current += healed
+        return healed

@@ -58,18 +58,33 @@ class AsciiRenderer(Renderer):
             for tile_x in range(first_col, last_col + 1):
                 self._draw_sprite(level.tile_sprite_at(tile_x, tile_y), tile_x, tile_y, camera)
 
-        # El decorado del mapa. La hoguera y los esqueletos todavía no son
-        # entidades: se dibujan desde los datos del nivel.
+        # El decorado del mapa. La hoguera todavía no es una entidad; los
+        # enemigos sí, y los dibuja el bucle con draw_entity().
         for tile_x, tile_y in level.bonfires:
             self._draw_sprite("bonfire", tile_x, tile_y, camera)
-        for tile_x, tile_y, sprite_id in level.enemy_spawns:
-            self._draw_sprite(sprite_id, tile_x, tile_y, camera)
 
     def draw_entity(self, entity, camera):
         """Dibuja una entidad en su posición continua, no en su tile."""
-        glyph = self._glyph_surface(entity.sprite_id)
-        screen_x, screen_y = camera.world_to_screen(entity.x, entity.y)
-        self.surface.blit(glyph, glyph.get_rect(center=(round(screen_x), round(screen_y))))
+        self._blit_glyph(entity.sprite_id, *camera.world_to_screen(entity.x, entity.y))
+
+    def draw_attack(self, x, y, facing, camera):
+        """Pinta el carácter de tajo que corresponde a la dirección."""
+        self._blit_glyph(ascii_theme.slash_sprite_for(facing), *camera.world_to_screen(x, y))
+
+    def draw_world_bar(self, bar_id, x, y, width, height, ratio, camera):
+        """Barrita en el mundo: se convierte a pantalla y se delega en draw_bar."""
+        screen_x, screen_y = camera.world_to_screen(x, y)
+        self.draw_bar(bar_id, round(screen_x), round(screen_y), width, height, ratio)
+
+    def draw_box_outline(self, box, camera, box_id):
+        """Contorno de una caja del mundo, para el modo depuración."""
+        screen_x, screen_y = camera.world_to_screen(box.left, box.top)
+        pygame.draw.rect(
+            self.surface,
+            ascii_theme.debug_box_color_for(box_id),
+            (round(screen_x), round(screen_y), round(box.width), round(box.height)),
+            1,
+        )
 
     def draw_bar(self, bar_id, x, y, width, height, ratio):
         """Barra del HUD: fondo, relleno proporcional y borde."""
@@ -104,8 +119,11 @@ class AsciiRenderer(Renderer):
 
     def _draw_sprite(self, sprite_id, tile_x, tile_y, camera):
         """Dibuja un glifo centrado en el tile (tile_x, tile_y)."""
-        glyph = self._glyph_surface(sprite_id)
         world_x = tile_x * self.tile_size + self.tile_size / 2
         world_y = tile_y * self.tile_size + self.tile_size / 2
-        screen_x, screen_y = camera.world_to_screen(world_x, world_y)
+        self._blit_glyph(sprite_id, *camera.world_to_screen(world_x, world_y))
+
+    def _blit_glyph(self, sprite_id, screen_x, screen_y):
+        """Pega un glifo centrado en un punto de la pantalla."""
+        glyph = self._glyph_surface(sprite_id)
         self.surface.blit(glyph, glyph.get_rect(center=(round(screen_x), round(screen_y))))

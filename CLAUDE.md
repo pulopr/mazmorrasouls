@@ -85,6 +85,7 @@ tests/
 | Q | Beber Estus |
 | E | Interactuar (hoguera, puertas) |
 | Esc | Pausa |
+| F1 | Modo depuración: hitboxes y cajas de colisión |
 
 ## Estadísticas (primera versión)
 
@@ -107,6 +108,8 @@ tests/
 - [x] **Fase 1**: movimiento del jugador en tiempo real, colisiones con muros y cámara que lo sigue.
 - [x] **Fase 2**: estamina y rodar con invulnerabilidad.
 - [ ] **Fase 3**: enemigo básico (patrulla, persigue, ataque con aviso previo), ataque del jugador, vida y muerte de enemigos.
+  - [x] **3a**: ataque del jugador, enemigos con vida y muerte (sin IA).
+  - [ ] **3b**: IA del esqueleto (patrulla, persigue, ataca con aviso) y daño al jugador.
 - [ ] **Fase 4**: almas, muerte del jugador y mancha de sangre.
 - [ ] **Fase 5**: hogueras (descanso, reaparición de enemigos, Estus) y menú de subida de nivel.
 - [ ] **Fase 6**: HUD completo y pantalla de "HAS MUERTO".
@@ -116,7 +119,7 @@ tests/
 
 ## Estado actual
 
-**Fases 0, 1 y 2 terminadas.**
+**Fases 0, 1, 2 y 3a terminadas.**
 
 Fase 0 — esqueleto:
 - Entorno virtual en `.venv/`, `requirements.txt` (pygame-ce 2.5.8, pytest 9.2.0) y `.gitignore`.
@@ -161,8 +164,7 @@ Fase 2 — estamina, rodar y correr:
 - El rodar se dispara con el evento KEYDOWN, no con la tecla mantenida.
 - Los i-frames se declaran como fracción de la duración del rodar
   (`ROLL_IFRAME_*_FRACTION`), de modo que siguen siendo proporcionales si se reajusta.
-- Tests: 74 en verde (`test_level`, `test_player`, `test_camera`, `test_stamina`,
-  `test_player_actions`).
+- Tests de la Fase 2: `test_stamina` y `test_player_actions`.
 
 Balance actual del movimiento (tile = 32 px):
 
@@ -173,14 +175,46 @@ Balance actual del movimiento (tile = 32 px):
 | Rodar (media) | 492 | 2,74 |
 | Rodar (pico inicial) | 985 | 5,47 |
 
+Fase 3a — ataque y enemigos con vida:
+- `game/systems/combat.py`: `Box` (AABB con `overlaps()` y `from_entity()`),
+  `attack_hitbox()` que coloca el rectángulo delante según la mirada, `apply_knockback()`
+  y `resolve_player_attack()`. Sin pygame.
+- `game/entities/enemy.py`: los esqueletos del mapa pasan a ser entidades con `Health`,
+  colisión con muros y parpadeo al encajar un golpe. **Todavía no se mueven**: la IA es
+  la Fase 3b. `Enemy.spawn_from_level()` los crea desde las marcas del mapa, así que el
+  renderer ya no los dibuja como decorado.
+- `Health` en `systems/stats.py`, junto a `Stamina`. El jugador también tiene vida,
+  aunque aún nada se la quite.
+- **Ataque ligero (J)**: cuesta estamina con la misma regla que el rodar (hace falta un
+  resto mayor que 0, nunca queda negativa). Tres fases deducidas del tiempo
+  (`AttackPhase`: WINDUP, ACTIVE, RECOVERY) en vez de estados aparte; la hitbox solo
+  existe en ACTIVE. Atacando uno apenas se mueve (`ATTACK_MOVE_FACTOR`) y no cambia de
+  rumbo; no se puede rodar hasta la recuperación, ni atacar rodando.
+- Cada tajo golpea a cada enemigo **una sola vez**: los alcanzados se apuntan en
+  `player.attack_hits`, que se vacía al empezar cada ataque.
+- El cruce jugador-enemigos lo resuelve `combat.resolve_player_attack()` desde el bucle,
+  no las entidades: así `Player.update()` no necesita conocer a los enemigos.
+- Al golpear: daño, retroceso (sin atravesar muros) y fogonazo blanco. A vida 0 el
+  enemigo desaparece de la lista.
+- Barras de vida (roja) y estamina del jugador apiladas abajo a la izquierda, y barrita
+  sobre cada enemigo herido. Tajo ASCII (`-`, `|`, `/`, `\`) delante del jugador durante
+  la fase activa.
+- **F1** activa el modo depuración: cajas de colisión en azul y hitboxes en rojo.
+- `Level.move_with_collision()` trocea ahora el desplazamiento en pasos no mayores que
+  un tile. Antes, un movimiento muy largo en un solo fotograma (un empujón fuerte)
+  aterrizaba al otro lado de la pared sin comprobar las casillas que cruzaba.
+- Tests: 104 en verde (se suma `tests/test_combat.py`).
+
 Decisiones y pendientes:
-- La hoguera y los esqueletos siguen siendo decorado dibujado desde los datos del nivel;
-  todavía no son entidades.
-- `is_invulnerable` ya funciona, pero aún no hay nada que haga daño: se usará en la Fase 3.
+- La hoguera sigue siendo decorado dibujado desde los datos del nivel; los esqueletos ya
+  son entidades.
+- `is_invulnerable` y la vida del jugador ya funcionan, pero todavía nada le hace daño:
+  se usarán en la Fase 3b.
 - La estamina se actualiza al principio del fotograma, antes de resolver la acción. Por
   eso basta con que haya un resto —aunque sea el que acaba de regenerarse— para rodar.
 - `level.py` importa `config` para conocer el tamaño de tile, así que arrastra pygame de
   forma indirecta (por las constantes de teclas). Sigue sin dibujar nada.
 - Sigue sin haber máquina de estados del juego; el bucle solo distingue "ejecutándose" o no.
 
-Siguiente paso: Fase 3 (enemigo básico, ataque del jugador, vida y muerte de enemigos).
+Siguiente paso: Fase 3b (IA del esqueleto: patrulla, persecución y ataque con aviso
+previo, y daño al jugador).

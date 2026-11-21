@@ -44,6 +44,8 @@ PLAYER_HEIGHT = 24
 # Velocidad de caminar, en píxeles por segundo (unos 5,6 tiles/s).
 PLAYER_SPEED = 180.0
 
+PLAYER_HEALTH = 100.0
+
 # --- Estamina ------------------------------------------------------------
 
 STAMINA_MAX = 100.0
@@ -89,11 +91,51 @@ RUN_SPEED = PLAYER_SPEED * 1.5
 # Gasto de estamina por segundo mientras se corre.
 RUN_STAMINA_DRAIN = 20.0
 
+# --- Ataque ligero -------------------------------------------------------
+
+ATTACK_DAMAGE = 34.0           # tres golpes matan a un esqueleto
+ATTACK_STAMINA_COST = 20.0
+
+# Las tres fases del golpe, en segundos. La hitbox solo existe durante
+# ATTACK_ACTIVE; en la recuperación ya se puede cancelar rodando.
+ATTACK_WINDUP = 0.09
+ATTACK_ACTIVE = 0.10
+ATTACK_RECOVERY = 0.21
+ATTACK_DURATION = ATTACK_WINDUP + ATTACK_ACTIVE + ATTACK_RECOVERY
+
+# Hitbox: un rectángulo delante del jugador. ATTACK_REACH es lo que se
+# aleja del cuerpo y ATTACK_WIDTH lo que abarca de lado.
+ATTACK_REACH = 34.0
+ATTACK_WIDTH = 42.0
+ATTACK_OFFSET = 2.0            # hueco entre el cuerpo y la hitbox
+
+# Atacando uno queda casi clavado en el sitio.
+ATTACK_MOVE_FACTOR = 0.15
+
+# Empujón que recibe el enemigo golpeado, en píxeles.
+ATTACK_KNOCKBACK = 18.0
+
+# --- Enemigos ------------------------------------------------------------
+
+ENEMY_WIDTH = 24
+ENEMY_HEIGHT = 24
+
+SKELETON_HEALTH = 100.0
+
+# Parpadeo en blanco al recibir un golpe, en segundos.
+ENEMY_HIT_FLASH = 0.12
+
 # --- HUD -----------------------------------------------------------------
 
 HUD_MARGIN = 16
 HUD_BAR_WIDTH = 220
 HUD_BAR_HEIGHT = 14
+HUD_BAR_SPACING = 6
+
+# Barra pequeña sobre los enemigos heridos.
+ENEMY_BAR_WIDTH = 28
+ENEMY_BAR_HEIGHT = 4
+ENEMY_BAR_OFFSET = 22          # cuánto se levanta sobre el centro del enemigo
 
 # --- Controles -----------------------------------------------------------
 # Tabla única de teclas. De momento se usan WASD, Espacio, Shift y Esc; el
@@ -109,3 +151,6 @@ KEY_RUN = (pygame.K_LSHIFT, pygame.K_RSHIFT)
 KEY_ESTUS = pygame.K_q
 KEY_INTERACT = pygame.K_e
 KEY_PAUSE = pygame.K_ESCAPE
+
+# Dibuja hitboxes y cajas de colisión.
+KEY_DEBUG = pygame.K_F1

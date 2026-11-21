@@ -170,9 +170,21 @@ class Level:
         sigue avanzando y la entidad **se desliza** a lo largo del muro en
         vez de quedarse clavada.
 
+        El desplazamiento se trocea en pasos no mayores que un tile. Sin
+        eso, un movimiento muy largo de un solo fotograma (un empujón
+        fuerte, por ejemplo) aterrizaría al otro lado de la pared sin
+        haber comprobado las casillas que cruza por el camino.
+
         Devuelve (chocó_en_x, chocó_en_y).
         """
-        return self._move_axis_x(entity, dx), self._move_axis_y(entity, dy)
+        longest = max(abs(dx), abs(dy))
+        steps = max(1, math.ceil(longest / self.tile_size))
+
+        hit_x = hit_y = False
+        for _ in range(steps):
+            hit_x = self._move_axis_x(entity, dx / steps) or hit_x
+            hit_y = self._move_axis_y(entity, dy / steps) or hit_y
+        return hit_x, hit_y
 
     def _move_axis_x(self, entity, dx):
         """Aplica el movimiento horizontal y lo frena contra el muro."""

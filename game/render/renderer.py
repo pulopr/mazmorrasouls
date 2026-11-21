@@ -23,6 +23,18 @@ class Renderer(ABC):
         """Dibuja una entidad, vista desde `camera`."""
 
     @abstractmethod
+    def draw_attack(self, x, y, facing, camera):
+        """Dibuja el efecto de un golpe en (x, y) del mundo, hacia `facing`."""
+
+    @abstractmethod
+    def draw_world_bar(self, bar_id, x, y, width, height, ratio, camera):
+        """Dibuja una barrita en coordenadas del mundo (sobre un enemigo)."""
+
+    @abstractmethod
+    def draw_box_outline(self, box, camera, box_id):
+        """Dibuja el contorno de una caja del mundo. Solo para depurar."""
+
+    @abstractmethod
     def draw_bar(self, bar_id, x, y, width, height, ratio):
         """Dibuja una barra del HUD llena en `ratio` (de 0 a 1).
 

@@ -8,9 +8,11 @@ aquí basta con "se está ejecutando" o no.
 import pygame
 
 from game import config
+from game.entities.enemy import Enemy
 from game.entities.player import Intent, Player
 from game.render.ascii_renderer import AsciiRenderer
 from game.render.camera import Camera
+from game.systems import combat
 from game.ui.hud import Hud
 from game.world.level import Level
 
@@ -26,13 +28,17 @@ class Game:
         self.renderer = AsciiRenderer(self.screen)
         self.level = Level.load(config.DEFAULT_LEVEL)
         self.player = Player.at_level_start(self.level)
+        self.enemies = Enemy.spawn_from_level(self.level)
         self.camera = Camera(config.SCREEN_WIDTH, config.SCREEN_HEIGHT)
         self.camera.follow(self.player.x, self.player.y, self.level)
         self.hud = Hud(config.SCREEN_WIDTH, config.SCREEN_HEIGHT)
         self.running = True
-        # El rodar se pide con una pulsación, no manteniendo la tecla: así
-        # dejar el dedo en Espacio no encadena volteretas.
+        # Rodar y atacar se piden con una pulsación, no manteniendo la
+        # tecla: así dejar el dedo encima no encadena acciones.
         self.roll_requested = False
+        self.attack_requested = False
+        # Modo depuración: dibuja hitboxes y cajas de colisión (F1).
+        self.debug = False
 
     # --- Bucle ------------------------------------------------------------
 
@@ -57,10 +63,23 @@ class Game:
                     self.running = False
                 elif event.key == config.KEY_ROLL:
                     self.roll_requested = True
+                elif event.key == config.KEY_ATTACK_LIGHT:
+                    self.attack_requested = True
+                elif event.key == config.KEY_DEBUG:
+                    self.debug = not self.debug
 
     def update(self, dt):
         """Avanza la simulación un fotograma."""
         self.player.update(dt, self.read_intent(), self.level)
+
+        # El cruce entre jugador y enemigos lo resuelve el sistema de
+        # combate, no las entidades: así ninguna necesita conocer a la otra.
+        combat.resolve_player_attack(self.player, self.enemies, self.level)
+        for enemy in self.enemies:
+            enemy.update(dt, self.level)
+        # Los muertos desaparecen del mundo.
+        self.enemies = [enemy for enemy in self.enemies if enemy.is_alive]
+
         self.camera.follow(self.player.x, self.player.y, self.level)
 
     def read_intent(self):
@@ -73,14 +92,37 @@ class Game:
             ),
             roll=self.roll_requested,
             run=any(keys[key] for key in config.KEY_RUN),
+            attack=self.attack_requested,
         )
-        # La petición de rodar se consume: vale para un solo fotograma.
+        # Las peticiones se consumen: valen para un solo fotograma.
         self.roll_requested = False
+        self.attack_requested = False
         return intent
 
     def draw(self):
         self.renderer.begin_frame()
         self.renderer.draw_level(self.level, self.camera)
+        for enemy in self.enemies:
+            self.renderer.draw_entity(enemy, self.camera)
         self.renderer.draw_entity(self.player, self.camera)
+
+        # El tajo solo se ve mientras el golpe está activo.
+        hitbox = self.player.attack_hitbox()
+        if hitbox is not None:
+            self.renderer.draw_attack(*hitbox.center, self.player.facing, self.camera)
+
+        self.hud.draw_enemy_health(self.renderer, self.enemies, self.camera)
         self.hud.draw(self.renderer, self.player)
+        if self.debug:
+            self.draw_debug()
         self.renderer.present()
+
+    def draw_debug(self):
+        """Contornos de las cajas: colisión en azul, hitboxes en rojo."""
+        for entity in [self.player, *self.enemies]:
+            self.renderer.draw_box_outline(
+                combat.Box.from_entity(entity), self.camera, "collision"
+            )
+        hitbox = self.player.attack_hitbox()
+        if hitbox is not None:
+            self.renderer.draw_box_outline(hitbox, self.camera, "hitbox")

@@ -52,6 +52,9 @@ class EnemyProfile:
     attack_width: float
     stun: float
     can_be_stunned: bool
+    souls: int
+    # Si es False, una vez derrotado no vuelve al reaparecer el jugador.
+    respawns: bool = True
     sight_grace: float = config.ENEMY_SIGHT_GRACE
 
 
@@ -70,6 +73,8 @@ SKELETON = EnemyProfile(
     attack_width=config.SKELETON_ATTACK_WIDTH,
     stun=config.SKELETON_STUN,
     can_be_stunned=config.SKELETON_CAN_BE_STUNNED,
+    souls=config.SKELETON_SOULS,
+    respawns=config.SKELETON_RESPAWNS,
 )
 
 ELITE = EnemyProfile(
@@ -87,6 +92,8 @@ ELITE = EnemyProfile(
     attack_width=config.ELITE_ATTACK_WIDTH,
     stun=config.ELITE_STUN,
     can_be_stunned=config.ELITE_CAN_BE_STUNNED,
+    souls=config.ELITE_SOULS,
+    respawns=config.ELITE_RESPAWNS,
 )
 
 ARCHER = EnemyProfile(
@@ -104,6 +111,8 @@ ARCHER = EnemyProfile(
     attack_width=config.ARCHER_ATTACK_WIDTH,
     stun=config.ARCHER_STUN,
     can_be_stunned=config.ARCHER_CAN_BE_STUNNED,
+    souls=config.ARCHER_SOULS,
+    respawns=config.ARCHER_RESPAWNS,
 )
 
 # Perfil que usa cada carácter del mapa.
@@ -136,18 +145,29 @@ class Enemy(Entity):
         self.attack_has_hit = False
         # Proyectiles disparados este fotograma; solo los usa el arquero.
         self.pending_projectiles = []
+        # Su puesto en la lista del mapa; lo rellena spawn_from_level().
+        self.spawn_index = None
 
     @classmethod
-    def spawn_from_level(cls, level):
-        """Crea un enemigo por cada marca del mapa, centrado en su tile."""
+    def spawn_from_level(cls, level, skip=()):
+        """Crea un enemigo por cada marca del mapa, centrado en su tile.
+
+        `skip` son los índices de los que no deben volver a aparecer: los
+        élite ya derrotados.
+        """
         # Import tardío: Archer hereda de Enemy y no puede importarse arriba.
         from game.entities.archer import Archer
 
         enemies = []
-        for tile_x, tile_y, enemy_char in level.enemy_spawns:
+        for index, (tile_x, tile_y, enemy_char) in enumerate(level.enemy_spawns):
             profile = PROFILES[enemy_char]
+            if index in skip:
+                continue
             enemy_class = Archer if profile is ARCHER else cls
-            enemies.append(enemy_class(*level.tile_center(tile_x, tile_y), profile))
+            enemy = enemy_class(*level.tile_center(tile_x, tile_y), profile)
+            # Su puesto en el mapa: sirve para saber quién no debe volver.
+            enemy.spawn_index = index
+            enemies.append(enemy)
         return enemies
 
     # --- Consultas --------------------------------------------------------

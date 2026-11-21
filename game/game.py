@@ -5,6 +5,7 @@ from enum import Enum, auto
 import pygame
 
 from game import config
+from game.entities.bloodstain import Bloodstain
 from game.entities.enemy import Enemy
 from game.entities.player import Intent, Player
 from game.render.ascii_renderer import AsciiRenderer
@@ -17,10 +18,14 @@ from game.world.level import Level
 
 
 class GameState(Enum):
-    """En qué pantalla está el juego."""
+    """En qué pantalla está el juego.
+
+    Cada estado tiene su propio `update`, así que añadir el menú de
+    hoguera y la pausa (Fase 5) es sumar una entrada aquí y un método.
+    """
 
     PLAYING = auto()
-    DEAD = auto()   # cartel de muerte; al acabar, se reinicia el nivel
+    DEAD = auto()     # cartel de muerte; al acabar, el jugador reaparece
 
 
 class Game:
@@ -44,18 +49,47 @@ class Game:
         # Órdenes de fijado pendientes: fijar/soltar y cambiar de objetivo.
         self.lock_requested = False
         self.lock_cycle = 0
+        # Interactuar (E): de momento solo recoger la mancha de sangre.
+        self.interact_requested = False
         # Modo depuración: hitboxes, cajas de colisión y radios (F1).
         self.debug = False
 
-        self.reset_level()
+        self.start_level()
 
-    def reset_level(self):
-        """Deja el nivel como al empezar: jugador vivo y enemigos en su sitio."""
+    def start_level(self):
+        """Prepara el nivel desde cero: partida nueva."""
         self.player = Player.at_level_start(self.level)
-        self.enemies = Enemy.spawn_from_level(self.level)
+        # Élites ya derrotados: no vuelven a aparecer.
+        self.defeated_for_good = set()
+        self.bloodstain = None
+        self.respawn_enemies()
+        self.camera.follow(self.player.x, self.player.y, self.level)
+        self.state = GameState.PLAYING
+        self.death_timer = 0.0
+
+    def respawn_enemies(self):
+        """Repuebla el nivel, saltándose a los que no deben volver."""
+        self.enemies = Enemy.spawn_from_level(self.level, skip=self.defeated_for_good)
         self.projectiles = []
-        # Objetivo fijado: se empieza siempre sin nada fijado.
+        # El objetivo fijado apuntaba a un enemigo que ya no existe.
         self.lock = targeting.LockOn()
+
+    def kill_player(self):
+        """El jugador ha muerto: suelta las almas y arranca el cartel."""
+        # La mancha anterior se pierde para siempre: solo puede haber una.
+        lost = self.player.souls.take_all()
+        self.bloodstain = (
+            Bloodstain.drop(self.level, self.player.x, self.player.y, lost, self.enemies)
+            if lost > 0
+            else None
+        )
+        self.state = GameState.DEAD
+        self.death_timer = config.DEATH_SCREEN_DURATION
+
+    def respawn_player(self):
+        """Devuelve al jugador a su punto de reaparición y repuebla el nivel."""
+        self.player.revive()
+        self.respawn_enemies()
         self.camera.follow(self.player.x, self.player.y, self.level)
         self.state = GameState.PLAYING
         self.death_timer = 0.0
@@ -85,6 +119,8 @@ class Game:
                     self.roll_requested = True
                 elif event.key == config.KEY_ATTACK_LIGHT:
                     self.attack_requested = True
+                elif event.key == config.KEY_INTERACT:
+                    self.interact_requested = True
                 elif event.key == config.KEY_LOCK_ON:
                     self.lock_requested = True
                 elif event.key == config.KEY_LOCK_PREV:
@@ -118,14 +154,38 @@ class Game:
             self.projectiles, dt, self.level, [self.player]
         )
 
-        # Los muertos desaparecen del mundo.
-        self.enemies = [enemy for enemy in self.enemies if enemy.is_alive]
+        self.collect_the_dead()
+        self.update_bloodstain(dt)
 
         if not self.player.is_alive:
-            self.state = GameState.DEAD
-            self.death_timer = config.DEATH_SCREEN_DURATION
+            self.kill_player()
 
         self.camera.follow(*targeting.camera_focus(self.player, self.lock.target), self.level)
+
+    def collect_the_dead(self):
+        """Retira a los caídos y cobra sus almas."""
+        survivors = []
+        for enemy in self.enemies:
+            if enemy.is_alive:
+                survivors.append(enemy)
+                continue
+            self.player.souls.gain(enemy.profile.souls)
+            if not enemy.profile.respawns:
+                # Un élite derrotado no vuelve nunca más.
+                self.defeated_for_good.add(enemy.spawn_index)
+        self.enemies = survivors
+
+    def update_bloodstain(self, dt):
+        """Hace parpadear la mancha y la recoge si se pulsa E al lado."""
+        if self.bloodstain is None:
+            self.interact_requested = False
+            return
+
+        self.bloodstain.update(dt)
+        if self.interact_requested and self.bloodstain.can_be_reached_by(self.player):
+            self.player.souls.gain(self.bloodstain.collect())
+            self.bloodstain = None
+        self.interact_requested = False
 
     def update_lock(self, dt, intent):
         """Atiende las órdenes de fijado y devuelve el Intent con la mirada."""
@@ -144,18 +204,21 @@ class Game:
         return replace(intent, look_at=self.lock.look_at())
 
     def update_death(self, dt):
-        """Cuenta atrás del cartel de muerte y reinicio del nivel.
-
-        Provisional hasta la Fase 4, que traerá hogueras y mancha de sangre.
-        """
+        """Cuenta atrás del cartel de muerte. La acción está detenida."""
         self.death_timer -= dt
+        # La mancha sigue parpadeando mientras sale el cartel.
+        if self.bloodstain is not None:
+            self.bloodstain.update(dt)
         # Las peticiones acumuladas no deben dispararse al reaparecer.
         self.roll_requested = False
         self.attack_requested = False
         self.lock_requested = False
         self.lock_cycle = 0
+        self.interact_requested = False
         if self.death_timer <= 0:
-            self.reset_level()
+            # Reaparecer, no empezar de cero: la mancha y los élites
+            # derrotados sobreviven a la muerte.
+            self.respawn_player()
 
     def read_intent(self):
         """Traduce el teclado a un Intent. Aquí no se decide nada más."""
@@ -179,6 +242,8 @@ class Game:
     def draw(self):
         self.renderer.begin_frame()
         self.renderer.draw_level(self.level, self.camera)
+        if self.bloodstain is not None:
+            self.renderer.draw_entity(self.bloodstain, self.camera)
         for enemy in self.enemies:
             self.renderer.draw_entity(enemy, self.camera)
         if self.lock.is_locked:

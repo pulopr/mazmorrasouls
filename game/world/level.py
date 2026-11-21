@@ -187,6 +187,38 @@ class Level:
                 return False
         return True
 
+    def nearest_free_tile(self, tile_x, tile_y, is_blocked=None):
+        """Casilla transitable más cercana a (tile_x, tile_y).
+
+        Busca en anillos crecientes alrededor de la casilla de partida.
+        `is_blocked(tile_x, tile_y)` permite descartar además casillas
+        libres de muros pero ocupadas por otra cosa. Devuelve None si no
+        encuentra ninguna en todo el mapa.
+        """
+
+        def usable(x, y):
+            if self.is_solid(x, y):
+                return False
+            return not (is_blocked is not None and is_blocked(x, y))
+
+        if usable(tile_x, tile_y):
+            return (tile_x, tile_y)
+
+        for ring in range(1, max(self.width, self.height) + 1):
+            for offset_y in range(-ring, ring + 1):
+                for offset_x in range(-ring, ring + 1):
+                    # Solo el borde del anillo; el interior ya se miró.
+                    if max(abs(offset_x), abs(offset_y)) != ring:
+                        continue
+                    x, y = tile_x + offset_x, tile_y + offset_y
+                    if usable(x, y):
+                        return (x, y)
+        return None
+
+    def tile_of(self, x, y):
+        """Casilla en la que cae un punto del mundo."""
+        return (math.floor(x / self.tile_size), math.floor(y / self.tile_size))
+
     # --- Colisión ---------------------------------------------------------
 
     def _overlapped_tiles(self, entity):

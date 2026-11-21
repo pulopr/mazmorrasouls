@@ -132,6 +132,13 @@ class AsciiRenderer(Renderer):
             1,
         )
 
+    def draw_hud_text(self, text, x, y, align="left"):
+        """Texto de la HUD; con align="right", (x, y) es la esquina derecha."""
+        label = self.font.render(text, True, ascii_theme.HUD_TEXT_COLOR)
+        rect = label.get_rect()
+        setattr(rect, "topright" if align == "right" else "topleft", (round(x), round(y)))
+        self.surface.blit(label, rect)
+
     def draw_message(self, text):
         """Cartel grande centrado en la pantalla."""
         label = self.message_font.render(text, True, ascii_theme.MESSAGE_COLOR)

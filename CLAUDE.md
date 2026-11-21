@@ -77,6 +77,8 @@ tests/
 | `*` | Objeto (por definir; de momento solo decorado) |
 | `+` | Puerta |
 
+La mancha de sangre (`&`) no se escribe en el mapa: nace al morir el jugador.
+
 ## Controles (iniciales)
 
 | Tecla | Acción |
@@ -115,7 +117,7 @@ tests/
 - [ ] **Fase 3**: enemigo básico (patrulla, persigue, ataque con aviso previo), ataque del jugador, vida y muerte de enemigos.
   - [x] **3a**: ataque del jugador, enemigos con vida y muerte (sin IA).
   - [x] **3b**: IA del esqueleto (persigue, ataca con aviso) y daño al jugador.
-- [ ] **Fase 4**: almas, muerte del jugador y mancha de sangre.
+- [x] **Fase 4**: almas, muerte del jugador y mancha de sangre.
 - [ ] **Fase 5**: hogueras (descanso, reaparición de enemigos, Estus) y menú de subida de nivel.
 - [ ] **Fase 6**: HUD completo y pantalla de "HAS MUERTO".
 - [ ] **Fase 7**: más tipos de enemigos, puertas y atajos, primer jefe.
@@ -125,7 +127,7 @@ tests/
 
 ## Estado actual
 
-**Fases 0, 1, 2, 3a y 3b terminadas.**
+**Fases 0, 1, 2, 3 y 4 terminadas.**
 
 Fase 0 — esqueleto:
 - Entorno virtual en `.venv/`, `requirements.txt` (pygame-ce 2.5.8, pytest 9.2.0) y `.gitignore`.
@@ -234,8 +236,8 @@ Fase 3b — IA del esqueleto y daño al jugador:
 - `combat.separate_enemies()`: empuje suave que deshace solapamientos entre enemigos y
   contra el jugador, respetando muros. Al jugador no se le mueve: de los dos cede el
   enemigo.
-- `GameState` (PLAYING / DEAD): al morir sale "HAS MUERTO" unos segundos y el nivel se
-  reinicia con `Game.reset_level()`. Provisional hasta la Fase 4.
+- `GameState` (PLAYING / DEAD): al morir sale "HAS MUERTO" unos segundos. Lo que pasa
+  después lo define la Fase 4.
 - **F1** añade el radio de detección y el nombre del estado sobre cada enemigo.
 - Tests: 133 en verde (se suman `tests/test_enemy_ai.py` y `tests/test_game_states.py`).
 
@@ -292,6 +294,32 @@ Fijado de objetivo (lock-on):
 - ASCII: el objetivo se dibuja entre corchetes, `[s]`.
 - Tests: 180 en verde (se suma `tests/test_targeting.py`).
 
+Fase 4 — almas, muerte y mancha de sangre:
+- `Souls` en `systems/stats.py`: guarda el total real y un `shown` que lo persigue, de
+  modo que el contador de la HUD sube rodando en vez de saltar (`SOULS_COUNTER_*`).
+  Se ve abajo a la derecha.
+- Cada perfil de enemigo trae sus `souls` y un `respawns`. El esqueleto da 30, el
+  arquero 55 y el élite 300. Las almas se cobran en `Game.collect_the_dead()`, al
+  retirar a los caídos, así que da igual cómo hayan muerto.
+- **Reaparición selectiva**: cada enemigo lleva su `spawn_index`. Al morir uno con
+  `respawns=False` (el élite) su índice va a `defeated_for_good` y `spawn_from_level()`
+  lo salta para siempre. Los demás vuelven enteros y en su sitio.
+- **Muerte**: sale "HAS MUERTO" en rojo, la acción se detiene y tras
+  `DEATH_SCREEN_DURATION` el jugador reaparece. No se recrea: `Player.revive()` lo
+  restaura en su `respawn_point`, que de momento es el `@` del mapa y en la Fase 5
+  moverán las hogueras.
+- **Mancha de sangre** (`entities/bloodstain.py`): nace en el instante de morir —así se
+  ve ya durante el cartel— con todas las almas que llevabas, y el contador queda a 0.
+  Solo puede haber una: morir otra vez destruye la anterior para siempre. Morir con 0
+  almas no crea mancha pero sí borra la vieja. Se recoge con **E** a menos de
+  `BLOODSTAIN_PICKUP_RADIUS`. Si caes en un muro o encima de un enemigo,
+  `Bloodstain.drop()` la coloca en la casilla libre más cercana
+  (`Level.nearest_free_tile()`, por anillos). Se dibuja como `&` verde parpadeante.
+- `GameState` pasa a tener un `update` por estado, listo para sumar el menú de hoguera
+  y la pausa. `start_level()` (partida nueva) y `respawn_player()` (morir) son cosas
+  distintas.
+- Tests: 205 en verde (se suma `tests/test_souls.py`).
+
 Decisiones y pendientes:
 - La hoguera sigue siendo decorado dibujado desde los datos del nivel; los esqueletos ya
   son entidades.
@@ -303,4 +331,6 @@ Decisiones y pendientes:
   forma indirecta (por las constantes de teclas). Sigue sin dibujar nada.
 - Sigue sin haber máquina de estados del juego; el bucle solo distingue "ejecutándose" o no.
 
-Siguiente paso: Fase 4 (almas, muerte del jugador y mancha de sangre).
+Siguiente paso: Fase 5 (hogueras: descanso, reaparición de enemigos, Estus y menú de
+subida de nivel). La hoguera moverá `player.respawn_point` y `Souls.spend()` ya está
+listo para pagar los niveles.

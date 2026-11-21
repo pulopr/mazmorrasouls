@@ -55,6 +55,10 @@ class Renderer(ABC):
         """Traza una línea entre dos puntos del mundo. Solo para depurar."""
 
     @abstractmethod
+    def draw_hud_text(self, text, x, y, align="left"):
+        """Escribe texto de HUD anclado por su esquina izquierda o derecha."""
+
+    @abstractmethod
     def draw_message(self, text):
         """Escribe un mensaje grande en el centro de la pantalla."""
 

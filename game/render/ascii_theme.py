@@ -39,6 +39,9 @@ SPRITES = {
     # Corchetes que rodean al enemigo fijado: [s]
     "lock_left": ("[", (255, 245, 210)),
     "lock_right": ("]", (255, 245, 210)),
+    # Mancha de sangre: verde brillante que parpadea, visible de lejos.
+    "bloodstain": ("&", (120, 255, 140)),
+    "bloodstain_dim": ("&", (45, 140, 70)),
     # Objetos del mapa: todavía decorado, no se recogen.
     "item": ("*", (90, 160, 255)),
     # Flechas: el carácter depende de hacia dónde vuelan.
@@ -122,4 +125,7 @@ def debug_box_color_for(box_id):
 # --- Mensajes a pantalla completa -----------------------------------------
 
 MESSAGE_COLOR = (200, 40, 40)
+
+# Texto de la HUD (contador de almas).
+HUD_TEXT_COLOR = (235, 225, 170)
 MESSAGE_FONT_SCALE = 3.0        # veces el tamaño de la fuente del mundo

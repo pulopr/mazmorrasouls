@@ -156,6 +156,8 @@ SKELETON_ATTACK_REACH = 32.0
 SKELETON_ATTACK_WIDTH = 38.0
 SKELETON_STUN = 0.30                # cuánto se queda aturdido al ser golpeado
 SKELETON_CAN_BE_STUNNED = True      # habrá enemigos que no se interrumpan
+SKELETON_SOULS = 30                 # almas que suelta al morir
+SKELETON_RESPAWNS = True            # vuelve al reaparecer el jugador
 
 # --- Élite (D): enemigo difícil ------------------------------------------
 # Mismo comportamiento que el esqueleto, pero mucho más duro y peligroso.
@@ -174,7 +176,8 @@ ELITE_ATTACK_REACH = 42.0
 ELITE_ATTACK_WIDTH = 48.0
 ELITE_STUN = 0.14                   # cuesta mucho más interrumpirlo
 ELITE_CAN_BE_STUNNED = True
-ELITE_SOULS = 300                   # Fase 4
+ELITE_SOULS = 300                   # muchas más que un esqueleto
+ELITE_RESPAWNS = False              # una vez derrotado, no vuelve
 
 # --- Arquero (A) ---------------------------------------------------------
 # Muy poca vida; su peligro es la distancia. El disparo llega en la Parte 3.
@@ -192,6 +195,8 @@ ARCHER_ATTACK_REACH = 28.0
 ARCHER_ATTACK_WIDTH = 32.0
 ARCHER_STUN = 0.35                  # se descompone con nada
 ARCHER_CAN_BE_STUNNED = True
+ARCHER_SOULS = 55                   # algo más que un esqueleto
+ARCHER_RESPAWNS = True
 
 # Cómo se coloca: ni pegado ni demasiado lejos.
 ARCHER_SHOOT_RANGE = 280.0          # distancia a la que le gusta disparar
@@ -223,11 +228,24 @@ LOCK_ON_FRONT_BIAS = 1.5
 # moverla y 0.5 la dejaría justo en el punto medio.
 LOCK_ON_CAMERA_BIAS = 0.3
 
-# --- Muerte del jugador --------------------------------------------------
-# Provisional hasta la Fase 4: cartel y reinicio del nivel.
+# --- Almas ---------------------------------------------------------------
+
+# El contador de la HUD no salta de golpe: persigue al total real.
+# Alcanza esa fracción de la diferencia por segundo, con un mínimo para
+# que las cantidades pequeñas no tarden una eternidad.
+SOULS_COUNTER_CATCHUP = 4.0
+SOULS_COUNTER_MIN_SPEED = 45.0
+
+# --- Muerte del jugador y mancha de sangre -------------------------------
 
 DEATH_MESSAGE = "HAS MUERTO"
 DEATH_SCREEN_DURATION = 2.5
+
+# A qué distancia se puede recoger la mancha con E.
+BLOODSTAIN_PICKUP_RADIUS = 44.0
+
+# Periodo del parpadeo de la mancha, en segundos.
+BLOODSTAIN_BLINK_PERIOD = 0.9
 
 # --- HUD -----------------------------------------------------------------
 

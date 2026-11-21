@@ -6,6 +6,10 @@ resto de atributos (vigor, resistencia, fuerza) llegarán en la Fase 5.
 Lógica pura: sin pygame y sin dibujar.
 """
 
+import math
+
+from game import config
+
 
 class Stamina:
     """Depósito de estamina que se gasta de golpe y se recupera solo.
@@ -100,3 +104,52 @@ class Health:
         healed = min(self.maximum - self.current, max(0.0, amount))
         self.current += healed
         return healed
+
+
+class Souls:
+    """Las almas del jugador: moneda y experiencia a la vez.
+
+    Guarda dos números: `total`, que es el real, y `shown`, que lo
+    persigue poco a poco. La HUD enseña el segundo, así que al matar algo
+    el contador sube rodando en vez de saltar de golpe.
+    """
+
+    def __init__(self, amount=0):
+        self.total = int(amount)
+        self.shown = float(amount)
+
+    @property
+    def displayed(self):
+        """Lo que debe escribir la HUD ahora mismo."""
+        return int(round(self.shown))
+
+    def gain(self, amount):
+        """Suma almas. El contador las alcanzará en unos fotogramas."""
+        self.total += int(amount)
+
+    def spend(self, amount):
+        """Gasta almas si llegan. Devuelve si se ha podido (Fase 5)."""
+        if amount > self.total:
+            return False
+        self.total -= int(amount)
+        return True
+
+    def take_all(self):
+        """Vacía el contador y devuelve lo que había.
+
+        Es lo que pasa al morir: todo lo que llevabas se queda en la
+        mancha de sangre.
+        """
+        lost = self.total
+        self.total = 0
+        self.shown = 0.0
+        return lost
+
+    def update(self, dt):
+        """Acerca el contador visible al total real."""
+        difference = self.total - self.shown
+        if abs(difference) < 0.5:
+            self.shown = float(self.total)
+            return
+        speed = max(config.SOULS_COUNTER_MIN_SPEED, abs(difference) * config.SOULS_COUNTER_CATCHUP)
+        self.shown += math.copysign(min(speed * dt, abs(difference)), difference)

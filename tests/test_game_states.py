@@ -62,13 +62,13 @@ def test_level_restarts_after_the_death_screen(game):
     assert (game.player.x, game.player.y) == game.level.tile_center(*game.level.player_start)
 
 
-def test_restart_puts_the_enemies_back_in_place(game):
+def test_respawning_puts_the_enemies_back_in_place(game):
     homes = sorted(enemy.home for enemy in game.enemies)
     for enemy in game.enemies:
         enemy.x += 200
         enemy.health.take_damage(10)
 
-    game.reset_level()
+    game.respawn_enemies()
 
     assert sorted(enemy.home for enemy in game.enemies) == homes
     for enemy in game.enemies:

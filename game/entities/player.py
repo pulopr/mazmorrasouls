@@ -11,7 +11,7 @@ from enum import Enum, auto
 from game import config
 from game.entities.entity import Entity
 from game.systems import combat
-from game.systems.stats import Health, Stamina
+from game.systems.stats import Health, Souls, Stamina
 
 
 def normalize(dx, dy):
@@ -88,6 +88,10 @@ class Player(Entity):
         super().__init__(x, y, config.PLAYER_WIDTH, config.PLAYER_HEIGHT, "player")
         self.speed = config.PLAYER_SPEED
         self.health = Health(config.PLAYER_HEALTH)
+        self.souls = Souls()
+        # Dónde reaparece al morir. De momento el '@' del mapa; en la
+        # Fase 5 lo moverán las hogueras.
+        self.respawn_point = (float(x), float(y))
         self.stamina = Stamina(
             config.STAMINA_MAX, config.STAMINA_REGEN_RATE, config.STAMINA_REGEN_DELAY
         )
@@ -193,6 +197,23 @@ class Player(Entity):
             return None
         return combat.attack_hitbox(self.x, self.y, self.facing, self.half_width)
 
+    def revive(self):
+        """Vuelve a la vida en su punto de reaparición, entero.
+
+        No se crea un jugador nuevo: así se conservan el punto de
+        reaparición y lo que vaya acumulando en fases siguientes.
+        """
+        self.x, self.y = self.respawn_point
+        self.health.heal(self.health.maximum)
+        self.stamina.refill()
+        self.state = PlayerState.NORMAL
+        self.hurt_timer = 0.0
+        self.invulnerable_timer = 0.0
+        self._roll_elapsed = 0.0
+        self._attack_elapsed = 0.0
+        self.attack_hits.clear()
+        self._refresh_sprite()
+
     # --- Recibir golpes ---------------------------------------------------
 
     def take_hit(self, damage, direction, level):
@@ -220,6 +241,7 @@ class Player(Entity):
         # La estamina se actualiza primero: así un gasto de este fotograma
         # reinicia el respiro y no se recupera nada hasta pasado el retraso.
         self.stamina.update(dt)
+        self.souls.update(dt)
         self.invulnerable_timer = max(0.0, self.invulnerable_timer - dt)
 
         # Con objetivo fijado la mirada apunta a él siempre, aunque se

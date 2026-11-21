@@ -88,6 +88,8 @@ tests/
 | Q | Beber Estus |
 | E | Interactuar (hoguera, puertas) |
 | Esc | Pausa |
+| Tab | Fijar o soltar el objetivo más cercano (lock-on) |
+| Flecha izq./der. | Cambiar de objetivo fijado |
 | F1 | Modo depuración: hitboxes y cajas de colisión |
 
 ## Estadísticas (primera versión)
@@ -267,6 +269,28 @@ Esqueleto arquero (`A`) y proyectiles:
   dirección lo decide el renderer en `draw_projectile()`, no la lógica.
 - **F1** dibuja además la trayectoria prevista mientras el arquero tensa.
 - Tests: 157 en verde (se suma `tests/test_archer.py`).
+
+Fijado de objetivo (lock-on):
+- `game/systems/targeting.py`: `LockOn` (fijar, soltar, ciclar y mantenimiento por
+  fotograma) y funciones puras de selección. Sin pygame.
+- **Tab** fija al enemigo válido —vivo, dentro de `LOCK_ON_RADIUS` y con línea de
+  visión— con mejor puntuación: la distancia penalizada por el ángulo respecto a la
+  mirada (`LOCK_ON_FRONT_BIAS`), de modo que lo que está delante gana salvo que lo de
+  atrás esté bastante más cerca. Con algo fijado, Tab lo suelta.
+- **Flechas izquierda/derecha** recorren los candidatos ordenados por ángulo. La `y`
+  crece hacia abajo, así que el ángulo crece en sentido horario en pantalla.
+- **El jugador no sabe qué es un objetivo fijado**: `Intent` gana `look_at`, un punto
+  del mundo. Si viene, la mirada apunta ahí y ni andar, ni rodar, ni atacar la pisan
+  (`facing_is_locked`). WASD pasa a ser movimiento lateral, el rodar va hacia las
+  teclas sin perder el encare y la hitbox del ataque sale hacia el objetivo.
+- **Correr suelta el fijado**, como en Dark Souls.
+- Se suelta solo al pasar de `LOCK_ON_BREAK_RADIUS` o al perder la vista más de
+  `LOCK_ON_SIGHT_GRACE`. Si el objetivo muere o desaparece, salta al siguiente mejor
+  candidato; si no queda ninguno, se suelta.
+- La cámara sigue un punto desplazado hacia el objetivo (`camera_focus()`, con
+  `LOCK_ON_CAMERA_BIAS`), sin dejar de centrarse en el jugador.
+- ASCII: el objetivo se dibuja entre corchetes, `[s]`.
+- Tests: 180 en verde (se suma `tests/test_targeting.py`).
 
 Decisiones y pendientes:
 - La hoguera sigue siendo decorado dibujado desde los datos del nivel; los esqueletos ya

@@ -36,6 +36,9 @@ SPRITES = {
     "archer": ("A", (235, 70, 185)),
     "archer_hit": ("A", (255, 255, 255)),
     "archer_windup": ("A", (255, 215, 60)),
+    # Corchetes que rodean al enemigo fijado: [s]
+    "lock_left": ("[", (255, 245, 210)),
+    "lock_right": ("]", (255, 245, 210)),
     # Objetos del mapa: todavía decorado, no se recogen.
     "item": ("*", (90, 160, 255)),
     # Flechas: el carácter depende de hacia dónde vuelan.

@@ -9,7 +9,9 @@ from game.entities.enemy import Enemy
 from game.entities.player import Intent, Player
 from game.render.ascii_renderer import AsciiRenderer
 from game.render.camera import Camera
-from game.systems import combat, projectiles
+from dataclasses import replace
+
+from game.systems import combat, projectiles, targeting
 from game.ui.hud import Hud
 from game.world.level import Level
 
@@ -39,6 +41,9 @@ class Game:
         # tecla: así dejar el dedo encima no encadena acciones.
         self.roll_requested = False
         self.attack_requested = False
+        # Órdenes de fijado pendientes: fijar/soltar y cambiar de objetivo.
+        self.lock_requested = False
+        self.lock_cycle = 0
         # Modo depuración: hitboxes, cajas de colisión y radios (F1).
         self.debug = False
 
@@ -49,6 +54,8 @@ class Game:
         self.player = Player.at_level_start(self.level)
         self.enemies = Enemy.spawn_from_level(self.level)
         self.projectiles = []
+        # Objetivo fijado: se empieza siempre sin nada fijado.
+        self.lock = targeting.LockOn()
         self.camera.follow(self.player.x, self.player.y, self.level)
         self.state = GameState.PLAYING
         self.death_timer = 0.0
@@ -78,6 +85,12 @@ class Game:
                     self.roll_requested = True
                 elif event.key == config.KEY_ATTACK_LIGHT:
                     self.attack_requested = True
+                elif event.key == config.KEY_LOCK_ON:
+                    self.lock_requested = True
+                elif event.key == config.KEY_LOCK_PREV:
+                    self.lock_cycle = -1
+                elif event.key == config.KEY_LOCK_NEXT:
+                    self.lock_cycle = 1
                 elif event.key == config.KEY_DEBUG:
                     self.debug = not self.debug
 
@@ -87,7 +100,9 @@ class Game:
             self.update_death(dt)
             return
 
-        self.player.update(dt, self.read_intent(), self.level)
+        intent = self.read_intent()
+        intent = self.update_lock(dt, intent)
+        self.player.update(dt, intent, self.level)
 
         # El cruce entre jugador y enemigos lo resuelve el sistema de
         # combate, no las entidades: así ninguna necesita conocer a la otra.
@@ -110,7 +125,23 @@ class Game:
             self.state = GameState.DEAD
             self.death_timer = config.DEATH_SCREEN_DURATION
 
-        self.camera.follow(self.player.x, self.player.y, self.level)
+        self.camera.follow(*targeting.camera_focus(self.player, self.lock.target), self.level)
+
+    def update_lock(self, dt, intent):
+        """Atiende las órdenes de fijado y devuelve el Intent con la mirada."""
+        if self.lock_requested:
+            self.lock.toggle(self.player, self.enemies, self.level)
+        if self.lock_cycle:
+            self.lock.cycle(self.lock_cycle, self.player, self.enemies, self.level)
+        self.lock_requested = False
+        self.lock_cycle = 0
+
+        # Correr suelta el fijado, como en Dark Souls.
+        if intent.run and intent.direction != (0, 0):
+            self.lock.release()
+
+        self.lock.update(dt, self.player, self.enemies, self.level)
+        return replace(intent, look_at=self.lock.look_at())
 
     def update_death(self, dt):
         """Cuenta atrás del cartel de muerte y reinicio del nivel.
@@ -121,6 +152,8 @@ class Game:
         # Las peticiones acumuladas no deben dispararse al reaparecer.
         self.roll_requested = False
         self.attack_requested = False
+        self.lock_requested = False
+        self.lock_cycle = 0
         if self.death_timer <= 0:
             self.reset_level()
 
@@ -148,6 +181,8 @@ class Game:
         self.renderer.draw_level(self.level, self.camera)
         for enemy in self.enemies:
             self.renderer.draw_entity(enemy, self.camera)
+        if self.lock.is_locked:
+            self.renderer.draw_lock_marker(self.lock.target, self.camera)
         for arrow in self.projectiles:
             self.renderer.draw_projectile(arrow, self.camera)
         if self.player.is_alive:

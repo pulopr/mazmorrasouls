@@ -27,6 +27,10 @@ class Renderer(ABC):
         """Dibuja el efecto de un golpe en (x, y) del mundo, hacia `facing`."""
 
     @abstractmethod
+    def draw_lock_marker(self, entity, camera):
+        """Marca al enemigo fijado para que se distinga del resto."""
+
+    @abstractmethod
     def draw_projectile(self, projectile, camera):
         """Dibuja un proyectil; su aspecto depende de hacia dónde vuela."""
 

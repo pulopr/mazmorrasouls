@@ -209,6 +209,20 @@ ARROW_DAMAGE = 12.0                 # algo menos que el golpe del esqueleto
 ARROW_WIDTH = 10
 ARROW_HEIGHT = 10
 
+# --- Fijado de objetivo (lock-on) ----------------------------------------
+
+LOCK_ON_RADIUS = 360.0          # hasta dónde se puede fijar
+LOCK_ON_BREAK_RADIUS = 460.0    # más lejos de aquí, se suelta solo
+LOCK_ON_SIGHT_GRACE = 0.8       # segundos sin verlo antes de soltarlo
+
+# Cuánto se prefiere a un enemigo que está delante frente a uno a la
+# espalda: con 1.5, el de atrás tiene que estar 2,5 veces más cerca.
+LOCK_ON_FRONT_BIAS = 1.5
+
+# Cuánto se desplaza la cámara del jugador hacia el objetivo. 0 sería no
+# moverla y 0.5 la dejaría justo en el punto medio.
+LOCK_ON_CAMERA_BIAS = 0.3
+
 # --- Muerte del jugador --------------------------------------------------
 # Provisional hasta la Fase 4: cartel y reinicio del nivel.
 
@@ -241,6 +255,11 @@ KEY_RUN = (pygame.K_LSHIFT, pygame.K_RSHIFT)
 KEY_ESTUS = pygame.K_q
 KEY_INTERACT = pygame.K_e
 KEY_PAUSE = pygame.K_ESCAPE
+
+# Fijar objetivo y cambiar de uno a otro.
+KEY_LOCK_ON = pygame.K_TAB
+KEY_LOCK_PREV = pygame.K_LEFT
+KEY_LOCK_NEXT = pygame.K_RIGHT
 
 # Dibuja hitboxes y cajas de colisión.
 KEY_DEBUG = pygame.K_F1

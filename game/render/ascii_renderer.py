@@ -78,6 +78,13 @@ class AsciiRenderer(Renderer):
         """Pinta el carácter de tajo que corresponde a la dirección."""
         self._blit_glyph(ascii_theme.slash_sprite_for(facing), *camera.world_to_screen(x, y))
 
+    def draw_lock_marker(self, entity, camera):
+        """Corchetes a los lados del glifo del objetivo fijado: [s]."""
+        screen_x, screen_y = camera.world_to_screen(entity.x, entity.y)
+        offset = self.tile_size * 0.55
+        self._blit_glyph("lock_left", screen_x - offset, screen_y)
+        self._blit_glyph("lock_right", screen_x + offset, screen_y)
+
     def draw_projectile(self, projectile, camera):
         """El carácter de la flecha sale de su dirección de vuelo."""
         sprite_id = ascii_theme.arrow_sprite_for(projectile.direction)

@@ -53,6 +53,10 @@ class Intent:
     roll: bool = False
     run: bool = False
     attack: bool = False
+    # Punto del mundo al que mirar, si hay un objetivo fijado. Con él
+    # puesto, la mirada deja de seguir al movimiento. El jugador no sabe
+    # nada de lock-on: solo recibe adónde mirar.
+    look_at: tuple = None
 
 
 class PlayerState(Enum):
@@ -97,6 +101,8 @@ class Player(Entity):
         # Lo que queda sin poder actuar y de invulnerabilidad, tras un golpe.
         self.hurt_timer = 0.0
         self.invulnerable_timer = 0.0
+        # Mientras haya objetivo fijado, nada más puede cambiar la mirada.
+        self.facing_is_locked = False
         # Enemigos ya alcanzados por el ataque en curso, para no golpear
         # dos veces con el mismo tajo. Se vacía al empezar cada ataque.
         self.attack_hits = set()
@@ -216,6 +222,12 @@ class Player(Entity):
         self.stamina.update(dt)
         self.invulnerable_timer = max(0.0, self.invulnerable_timer - dt)
 
+        # Con objetivo fijado la mirada apunta a él siempre, aunque se
+        # esté rodando o atacando.
+        self.facing_is_locked = intent.look_at is not None
+        if self.facing_is_locked:
+            self.facing = normalize(intent.look_at[0] - self.x, intent.look_at[1] - self.y)
+
         if self.is_hurt:
             self._advance_hurt(dt)
         elif self.is_rolling:
@@ -244,7 +256,9 @@ class Player(Entity):
             # Sin teclas pulsadas, se rueda hacia donde se mira.
             dx, dy = self.facing
         self._roll_direction = (dx, dy)
-        self.facing = (dx, dy)
+        if not self.facing_is_locked:
+            # Con objetivo fijado se rueda de lado sin dejar de encararlo.
+            self.facing = (dx, dy)
         self._roll_elapsed = 0.0
         self.state = PlayerState.ROLLING
         # Rodando desde la recuperación de un golpe, ese golpe se da por
@@ -285,13 +299,16 @@ class Player(Entity):
     def _start_attack(self, direction):
         """Fija el rumbo del golpe y cobra la estamina."""
         dx, dy = normalize(*direction)
-        if (dx, dy) != (0.0, 0.0):
-            # Se golpea hacia donde se empuja; si no se empuja, hacia la mirada.
+        if (dx, dy) != (0.0, 0.0) and not self.facing_is_locked:
+            # Se golpea hacia donde se empuja; si no se empuja, hacia la
+            # mirada. Con objetivo fijado, siempre hacia el objetivo.
             self.facing = (dx, dy)
         self._attack_elapsed = 0.0
         # Lo que queda sin poder actuar y de invulnerabilidad, tras un golpe.
         self.hurt_timer = 0.0
         self.invulnerable_timer = 0.0
+        # Mientras haya objetivo fijado, nada más puede cambiar la mirada.
+        self.facing_is_locked = False
         self.attack_hits.clear()
         self.state = PlayerState.ATTACKING
         # Puede dejar la barra a 0, pero nunca en negativo.
@@ -321,7 +338,10 @@ class Player(Entity):
             self.state = PlayerState.NORMAL
             return
 
-        self.facing = (dx, dy)
+        if not self.facing_is_locked:
+            # Sin fijado, se mira hacia donde se anda. Con fijado, WASD
+            # mueve alrededor del enemigo sin girar la mirada.
+            self.facing = (dx, dy)
 
         # Correr exige estamina: al vaciarse, se sigue andando sin más.
         if intent.run and self.stamina.has_any:

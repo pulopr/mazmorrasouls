@@ -16,7 +16,9 @@ DATA_DIR = ROOT_DIR / "data"
 LEVELS_DIR = DATA_DIR / "levels"
 
 # Nivel que se carga al arrancar mientras no haya menú ni progresión.
-DEFAULT_LEVEL = LEVELS_DIR / "test.txt"
+# `test.txt` es la sala pequeña que usan los tests; `test_big.txt` es más
+# grande que la ventana, para poder probar la cámara.
+DEFAULT_LEVEL = LEVELS_DIR / "test_big.txt"
 
 # --- Ventana y tiempo ----------------------------------------------------
 
@@ -32,9 +34,19 @@ FPS = 60
 # calcula a partir de él, de modo que cambiar esto reescala el dibujado.
 TILE_SIZE = 32
 
+# --- Jugador -------------------------------------------------------------
+
+# Caja de colisión del jugador, algo menor que un tile para que pase por
+# los pasillos sin rozar las esquinas.
+PLAYER_WIDTH = 24
+PLAYER_HEIGHT = 24
+
+# Velocidad de caminar, en píxeles por segundo (unos 5,6 tiles/s).
+PLAYER_SPEED = 180.0
+
 # --- Controles -----------------------------------------------------------
-# Tabla única de teclas. De momento el bucle solo usa KEY_PAUSE (salir),
-# el resto queda declarado para las fases siguientes.
+# Tabla única de teclas. De momento se usan WASD y KEY_PAUSE (salir); el
+# resto queda declarado para las fases siguientes.
 
 KEY_MOVE_UP = pygame.K_w
 KEY_MOVE_LEFT = pygame.K_a

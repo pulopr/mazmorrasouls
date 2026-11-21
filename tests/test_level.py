@@ -5,6 +5,8 @@ import pytest
 from game import config
 from game.world.level import Level, LevelError
 
+SMALL_LEVEL_PATH = config.LEVELS_DIR / "test.txt"
+
 # Mapa mínimo escrito a mano para no depender de los archivos de `data/`.
 SMALL_MAP = "\n".join(
     [
@@ -66,11 +68,13 @@ def test_malformed_maps_are_rejected(text):
         Level.from_string(text)
 
 
-# --- El mapa de prueba del juego -----------------------------------------
+# --- Los mapas de `data/levels` ------------------------------------------
 
 
-def test_default_level_file_loads():
-    level = Level.load(config.DEFAULT_LEVEL)
+def test_small_level_file_loads():
+    # La sala pequeña es la que usan los tests, así que se nombra explícita:
+    # no debe depender de cuál sea el nivel por defecto del juego.
+    level = Level.load(SMALL_LEVEL_PATH)
     assert (level.width, level.height) == (20, 11)
     assert level.player_start == (9, 8)
     assert len(level.bonfires) == 1
@@ -82,3 +86,22 @@ def test_default_level_file_loads():
     for y in range(level.height):
         assert level.is_solid(0, y)
         assert level.is_solid(level.width - 1, y)
+
+
+def test_big_level_is_larger_than_the_window():
+    """El mapa grande existe para probar la cámara: debe desbordar la ventana."""
+    level = Level.load(config.LEVELS_DIR / "test_big.txt")
+    assert level.pixel_width > config.SCREEN_WIDTH
+    assert level.pixel_height > config.SCREEN_HEIGHT
+    assert len(level.enemy_spawns) >= 2
+    # Sus bordes también son muro, para que no haya forma de salirse.
+    for x in range(level.width):
+        assert level.is_solid(x, 0) and level.is_solid(x, level.height - 1)
+    for y in range(level.height):
+        assert level.is_solid(0, y) and level.is_solid(level.width - 1, y)
+
+
+def test_default_level_is_loadable():
+    """Sea cual sea el nivel por defecto, el juego debe poder cargarlo."""
+    level = Level.load(config.DEFAULT_LEVEL)
+    assert level.player_start is not None

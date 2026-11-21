@@ -16,7 +16,8 @@ SPRITES = {
     "door": ("+", (160, 120, 60)),
     # Entidades
     "player": ("@", (235, 235, 225)),
-    "skeleton": ("s", (200, 205, 210)),
+    # Los enemigos van en rojo para no confundirlos de un vistazo con el jugador.
+    "skeleton": ("s", (200, 55, 45)),
     "bonfire": ("B", (235, 140, 45)),
 }
 

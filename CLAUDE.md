@@ -103,7 +103,7 @@ tests/
 ## Hoja de ruta
 
 - [x] **Fase 0**: estructura del proyecto, ventana, bucle, renderer ASCII mostrando un mapa de prueba.
-- [ ] **Fase 1**: movimiento del jugador en tiempo real, colisiones con muros y cámara que lo sigue.
+- [x] **Fase 1**: movimiento del jugador en tiempo real, colisiones con muros y cámara que lo sigue.
 - [ ] **Fase 2**: estamina y rodar con invulnerabilidad.
 - [ ] **Fase 3**: enemigo básico (patrulla, persigue, ataque con aviso previo), ataque del jugador, vida y muerte de enemigos.
 - [ ] **Fase 4**: almas, muerte del jugador y mancha de sangre.
@@ -115,23 +115,41 @@ tests/
 
 ## Estado actual
 
-**Fase 0 terminada.**
+**Fases 0 y 1 terminadas.**
 
-Hecho:
+Hecho en la Fase 0:
 - Entorno virtual en `.venv/`, `requirements.txt` (pygame-ce 2.5.8, pytest 9.2.0) y `.gitignore`.
-- `main.py` + `game/game.py`: ventana de 960x540 y bucle a 60 FPS con `dt` en segundos, que
-  se cierra con Esc o con la X.
-- `game/config.py`: tamaño de tile, FPS, ventana, rutas y tabla de controles.
-- `game/world/level.py`: carga de mapas de texto; valida el formato y expone tiles,
-  `player_start`, `bonfires` y `enemy_spawns`. Lógica pura, sin pygame.
-- `game/render/`: `renderer.py` (interfaz), `ascii_renderer.py` (glifos monoespaciados
-  cacheados, mapa centrado en la ventana) y `ascii_theme.py` (glifos y colores por `sprite_id`).
-- `data/levels/test.txt`: sala de 20x11 con muros, suelo, `@`, una hoguera y dos esqueletos.
-- `tests/test_level.py`: 11 tests de carga de mapas, todos en verde.
+- `main.py` + `game/game.py`: ventana de 960x540 y bucle a 60 FPS con `dt` en segundos,
+  que se cierra con Esc o con la X.
+- `game/config.py`: tamaño de tile, FPS, ventana, rutas, controles y balance del jugador.
+- `game/render/`: interfaz `Renderer`, `AsciiRenderer` (glifos monoespaciados cacheados)
+  y `ascii_theme.py` (glifos y colores por `sprite_id`).
+
+Hecho en la Fase 1:
+- `game/entities/entity.py`: clase base con posición continua en float (el centro de la
+  caja), tamaño y `sprite_id`, con los bordes `left/right/top/bottom` como propiedades.
+- `game/entities/player.py`: el jugador nace en el `@` del mapa, se mueve con WASD a
+  `PLAYER_SPEED` px/s multiplicado por `dt` y normaliza la diagonal para que no sea
+  más rápida.
+- `Level.move_with_collision()`: colisión AABB contra los muros resolviendo **un eje
+  cada vez**, de modo que al empujar en diagonal contra una pared el jugador se desliza
+  por ella en vez de quedarse clavado. `Level` conoce ahora su `tile_size` y expone
+  `pixel_width`/`pixel_height` y `tile_center()`.
+- `game/render/camera.py`: sigue al jugador y se recorta a los bordes del mapa; si el
+  mapa cabe entero en la ventana, lo centra. Es aritmética pura, sin pygame.
+- El renderer dibuja solo los tiles visibles y recibe la cámara; los enemigos pasan a
+  rojo en `ascii_theme.py`.
+- `data/levels/test_big.txt`: cuatro salas unidas por pasillos, 56x32 tiles
+  (1792x1024 px), más grande que la ventana. Es el nivel por defecto.
+  `data/levels/test.txt` se mantiene como la sala pequeña que usan los tests.
+- Tests: 34 en verde entre `tests/test_level.py`, `tests/test_player.py` y
+  `tests/test_camera.py`.
 
 Decisiones:
-- Todavía no existen `game/entities/` ni `camera.py`: nada se mueve y la sala entra entera
-  en la ventana. El renderer dibuja al jugador y a los enemigos desde los datos del nivel.
-- Tampoco hay máquina de estados aún; el bucle solo distingue "ejecutándose" o no.
+- La hoguera y los esqueletos siguen siendo decorado dibujado desde los datos del nivel;
+  todavía no son entidades.
+- `level.py` importa `config` para conocer el tamaño de tile, así que arrastra pygame
+  de forma indirecta (por las constantes de teclas). Sigue sin dibujar nada.
+- Sigue sin haber máquina de estados; el bucle solo distingue "ejecutándose" o no.
 
-Siguiente paso: Fase 1 (movimiento del jugador, colisión AABB contra muros y cámara).
+Siguiente paso: Fase 2 (estamina y rodar con invulnerabilidad).

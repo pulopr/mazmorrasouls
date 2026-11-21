@@ -11,8 +11,16 @@ class Renderer(ABC):
     """Dibuja el estado del juego en pantalla."""
 
     @abstractmethod
-    def draw_level(self, level):
-        """Dibuja el mapa y las entidades estáticas del nivel."""
+    def begin_frame(self):
+        """Prepara el fotograma (limpia la pantalla)."""
+
+    @abstractmethod
+    def draw_level(self, level, camera):
+        """Dibuja el mapa y su decorado, visto desde `camera`."""
+
+    @abstractmethod
+    def draw_entity(self, entity, camera):
+        """Dibuja una entidad, vista desde `camera`."""
 
     @abstractmethod
     def present(self):

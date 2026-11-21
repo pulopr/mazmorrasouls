@@ -4,10 +4,18 @@ Un nivel es una cuadrícula de tiles. Los caracteres que representan
 entidades (`@`, `B`, `s`) no son tiles: marcan el punto donde nace algo y
 el tile que queda debajo es suelo.
 
-Este módulo es lógica pura: no dibuja nada ni conoce pygame.
+Este módulo es lógica pura: no dibuja nada. Además de cargar el mapa,
+resuelve la colisión de las entidades contra los muros.
 """
 
+import math
 from pathlib import Path
+
+from game import config
+
+# Margen para que un borde que cae justo en la frontera entre dos tiles
+# cuente como "todavía en el tile de antes" y no roce el de al lado.
+EPSILON = 1e-9
 
 # --- Caracteres del formato de mapa --------------------------------------
 
@@ -49,18 +57,29 @@ class Level:
         enemy_spawns: lista de (x, y, sprite_id) de enemigos.
     """
 
-    def __init__(self, tiles, player_start, bonfires, enemy_spawns):
+    def __init__(self, tiles, player_start, bonfires, enemy_spawns, tile_size=config.TILE_SIZE):
         self.tiles = tiles
         self.height = len(tiles)
         self.width = len(tiles[0]) if tiles else 0
         self.player_start = player_start
         self.bonfires = bonfires
         self.enemy_spawns = enemy_spawns
+        self.tile_size = tile_size
+
+    @property
+    def pixel_width(self):
+        """Ancho del mapa en píxeles del mundo."""
+        return self.width * self.tile_size
+
+    @property
+    def pixel_height(self):
+        """Alto del mapa en píxeles del mundo."""
+        return self.height * self.tile_size
 
     # --- Carga ------------------------------------------------------------
 
     @classmethod
-    def from_string(cls, text):
+    def from_string(cls, text, tile_size=config.TILE_SIZE):
         """Construye un nivel a partir del contenido de un archivo de mapa."""
         # Se ignoran las líneas vacías del final para que un salto de línea
         # sobrante no cree una fila fantasma.
@@ -101,12 +120,12 @@ class Level:
         if player_start is None:
             raise LevelError("El mapa no tiene inicio de jugador '@'")
 
-        return cls(tiles, player_start, bonfires, enemy_spawns)
+        return cls(tiles, player_start, bonfires, enemy_spawns, tile_size)
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path, tile_size=config.TILE_SIZE):
         """Carga un nivel desde una ruta de archivo."""
-        return cls.from_string(Path(path).read_text(encoding="utf-8"))
+        return cls.from_string(Path(path).read_text(encoding="utf-8"), tile_size)
 
     # --- Consultas --------------------------------------------------------
 
@@ -123,3 +142,79 @@ class Level:
     def is_solid(self, x, y):
         """¿Bloquea el paso el tile (x, y)? Fuera del mapa cuenta como muro."""
         return self.tile_at(x, y) in SOLID_TILES
+
+    def tile_center(self, tile_x, tile_y):
+        """Centro en píxeles del tile (tile_x, tile_y)."""
+        return (
+            tile_x * self.tile_size + self.tile_size / 2,
+            tile_y * self.tile_size + self.tile_size / 2,
+        )
+
+    # --- Colisión ---------------------------------------------------------
+
+    def _overlapped_tiles(self, entity):
+        """Rango de tiles (x0, x1, y0, y1) que solapa el AABB de la entidad."""
+        return (
+            math.floor(entity.left / self.tile_size),
+            math.floor((entity.right - EPSILON) / self.tile_size),
+            math.floor(entity.top / self.tile_size),
+            math.floor((entity.bottom - EPSILON) / self.tile_size),
+        )
+
+    def move_with_collision(self, entity, dx, dy):
+        """Mueve la entidad `dx`, `dy` píxeles sin dejarla entrar en un muro.
+
+        Cada eje se resuelve por separado: primero se aplica el movimiento
+        horizontal y se corrige, luego el vertical. Así, al empujar en
+        diagonal contra una pared, el eje bloqueado se anula pero el otro
+        sigue avanzando y la entidad **se desliza** a lo largo del muro en
+        vez de quedarse clavada.
+
+        Devuelve (chocó_en_x, chocó_en_y).
+        """
+        return self._move_axis_x(entity, dx), self._move_axis_y(entity, dy)
+
+    def _move_axis_x(self, entity, dx):
+        """Aplica el movimiento horizontal y lo frena contra el muro."""
+        if dx == 0:
+            return False
+        entity.x += dx
+
+        x0, x1, y0, y1 = self._overlapped_tiles(entity)
+        blocking = [
+            tile_x
+            for tile_x in range(x0, x1 + 1)
+            for tile_y in range(y0, y1 + 1)
+            if self.is_solid(tile_x, tile_y)
+        ]
+        if not blocking:
+            return False
+
+        if dx > 0:
+            # Yendo a la derecha, para en la cara izquierda del muro más cercano.
+            entity.right = min(blocking) * self.tile_size
+        else:
+            entity.left = (max(blocking) + 1) * self.tile_size
+        return True
+
+    def _move_axis_y(self, entity, dy):
+        """Aplica el movimiento vertical y lo frena contra el muro."""
+        if dy == 0:
+            return False
+        entity.y += dy
+
+        x0, x1, y0, y1 = self._overlapped_tiles(entity)
+        blocking = [
+            tile_y
+            for tile_x in range(x0, x1 + 1)
+            for tile_y in range(y0, y1 + 1)
+            if self.is_solid(tile_x, tile_y)
+        ]
+        if not blocking:
+            return False
+
+        if dy > 0:
+            entity.bottom = min(blocking) * self.tile_size
+        else:
+            entity.top = (max(blocking) + 1) * self.tile_size
+        return True

@@ -44,25 +44,32 @@ class AsciiRenderer(Renderer):
 
     # --- Interfaz ---------------------------------------------------------
 
-    def draw_level(self, level):
+    def begin_frame(self):
         self.surface.fill(ascii_theme.BACKGROUND_COLOR)
 
-        # Mientras no haya cámara (Fase 1), el mapa se centra en la ventana.
-        origin_x = (self.surface.get_width() - level.width * self.tile_size) // 2
-        origin_y = (self.surface.get_height() - level.height * self.tile_size) // 2
+    def draw_level(self, level, camera):
+        """Dibuja los tiles visibles y el decorado del mapa."""
+        # Solo se recorren los tiles que caen dentro de la cámara: en un
+        # mapa grande, dibujarlo entero cada fotograma sería tirar trabajo.
+        first_col, last_col = self._visible_range(camera.x, self.surface.get_width(), level.width)
+        first_row, last_row = self._visible_range(camera.y, self.surface.get_height(), level.height)
 
-        # Primero el suelo y los muros...
-        for y in range(level.height):
-            for x in range(level.width):
-                self._draw_sprite(level.tile_sprite_at(x, y), x, y, origin_x, origin_y)
+        for tile_y in range(first_row, last_row + 1):
+            for tile_x in range(first_col, last_col + 1):
+                self._draw_sprite(level.tile_sprite_at(tile_x, tile_y), tile_x, tile_y, camera)
 
-        # ...y encima las entidades estáticas del mapa.
-        for x, y in level.bonfires:
-            self._draw_sprite("bonfire", x, y, origin_x, origin_y)
-        for x, y, sprite_id in level.enemy_spawns:
-            self._draw_sprite(sprite_id, x, y, origin_x, origin_y)
-        player_x, player_y = level.player_start
-        self._draw_sprite("player", player_x, player_y, origin_x, origin_y)
+        # El decorado del mapa. La hoguera y los esqueletos todavía no son
+        # entidades: se dibujan desde los datos del nivel.
+        for tile_x, tile_y in level.bonfires:
+            self._draw_sprite("bonfire", tile_x, tile_y, camera)
+        for tile_x, tile_y, sprite_id in level.enemy_spawns:
+            self._draw_sprite(sprite_id, tile_x, tile_y, camera)
+
+    def draw_entity(self, entity, camera):
+        """Dibuja una entidad en su posición continua, no en su tile."""
+        glyph = self._glyph_surface(entity.sprite_id)
+        screen_x, screen_y = camera.world_to_screen(entity.x, entity.y)
+        self.surface.blit(glyph, glyph.get_rect(center=(round(screen_x), round(screen_y))))
 
     def present(self):
         pygame.display.flip()
@@ -78,11 +85,16 @@ class AsciiRenderer(Renderer):
             self._glyph_cache[sprite_id] = cached
         return cached
 
-    def _draw_sprite(self, sprite_id, tile_x, tile_y, origin_x, origin_y):
+    def _visible_range(self, camera_start, view_size, tile_count):
+        """Primer y último índice de tile visible en un eje."""
+        first = max(0, int(camera_start // self.tile_size))
+        last = min(tile_count - 1, int((camera_start + view_size) // self.tile_size))
+        return first, last
+
+    def _draw_sprite(self, sprite_id, tile_x, tile_y, camera):
         """Dibuja un glifo centrado en el tile (tile_x, tile_y)."""
         glyph = self._glyph_surface(sprite_id)
-        center = (
-            origin_x + tile_x * self.tile_size + self.tile_size // 2,
-            origin_y + tile_y * self.tile_size + self.tile_size // 2,
-        )
-        self.surface.blit(glyph, glyph.get_rect(center=center))
+        world_x = tile_x * self.tile_size + self.tile_size / 2
+        world_y = tile_y * self.tile_size + self.tile_size / 2
+        screen_x, screen_y = camera.world_to_screen(world_x, world_y)
+        self.surface.blit(glyph, glyph.get_rect(center=(round(screen_x), round(screen_y))))

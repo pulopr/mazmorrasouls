@@ -193,6 +193,22 @@ ARCHER_ATTACK_WIDTH = 32.0
 ARCHER_STUN = 0.35                  # se descompone con nada
 ARCHER_CAN_BE_STUNNED = True
 
+# Cómo se coloca: ni pegado ni demasiado lejos.
+ARCHER_SHOOT_RANGE = 280.0          # distancia a la que le gusta disparar
+ARCHER_MIN_DISTANCE = 130.0         # si te acercas más, retrocede
+
+# El disparo: tensar es más largo que el aviso del esqueleto (0,40 s).
+ARCHER_AIM_WINDUP = 0.55
+ARCHER_SHOT_RECOVERY = 0.35
+ARCHER_SHOT_COOLDOWN = 1.10         # tiempo mínimo entre flechas
+
+# --- Flechas -------------------------------------------------------------
+
+ARROW_SPEED = 260.0                 # lenta a propósito: se puede esquivar
+ARROW_DAMAGE = 12.0                 # algo menos que el golpe del esqueleto
+ARROW_WIDTH = 10
+ARROW_HEIGHT = 10
+
 # --- Muerte del jugador --------------------------------------------------
 # Provisional hasta la Fase 4: cartel y reinicio del nivel.
 

@@ -117,6 +117,7 @@ tests/
 - [ ] **Fase 5**: hogueras (descanso, reaparición de enemigos, Estus) y menú de subida de nivel.
 - [ ] **Fase 6**: HUD completo y pantalla de "HAS MUERTO".
 - [ ] **Fase 7**: más tipos de enemigos, puertas y atajos, primer jefe.
+  - [x] Arquero (`A`) y élite (`D`) ya existen; faltan puertas, atajos y jefe.
 - [ ] **Fase 8**: guardado de partida.
 - [ ] **Fase 9**: sustituir el ASCII por sprites o tiles.
 
@@ -242,12 +243,30 @@ Primer nivel (`data/levels/nivel_01.txt`):
 - El élite usa el comportamiento del esqueleto con su propio bloque de `config.py`:
   260 de vida, 34 de daño, radios mayores, aviso más largo y mucho más difícil de
   interrumpir. Se dibuja en morado.
-- Los objetos `*` son decorado azul; todavía no se recogen.
+- Los objetos `*` son decorado azul; todavía no se recogen ni tienen efecto.
 - `nivel_01.txt` (64x72 tiles, 2048x2304 px) es el nivel por defecto: 6 esqueletos,
   1 arquero, 1 élite, 1 hoguera y 5 objetos. `test.txt` y `test_big.txt` se mantienen
   para los tests.
 - Tests: el nivel es válido, está cerrado por muros, todo su suelo es alcanzable desde
   el `@` (inundación) y todo carácter de enemigo tiene perfil.
+
+Esqueleto arquero (`A`) y proyectiles:
+- `game/systems/projectiles.py`: `Projectile` (posición, dirección, velocidad, daño y
+  quién lo disparó) y `update_projectiles()`. Vuela troceando el paso en medios tiles,
+  así que no atraviesa paredes finas por rápido que vaya. Al acertar desaparece, de modo
+  que golpear una sola vez sale solo. Sin pygame.
+- Si el objetivo es invulnerable (i-frames del rodar o el respiro tras un golpe), la
+  flecha **le atraviesa sin consumirse**: esquivar es esquivar.
+- `game/entities/archer.py`: `Archer` hereda de `Enemy` y solo redefine cómo se coloca
+  y qué hace al acabar el aviso. Mantiene las distancias (retrocede si te acercas a
+  menos de `ARCHER_MIN_DISTANCE`, se aproxima si estás fuera de `ARCHER_SHOOT_RANGE`),
+  tensa el arco más tiempo que el esqueleto, dispara **adonde apuntaba al empezar a
+  tensar** y respeta un tiempo mínimo entre flechas. Acorralado, le queda un golpe
+  cuerpo a cuerpo flojo. Muere en 2 golpes ligeros.
+- El `sprite_id` de la flecha es genérico (`"arrow"`); qué carácter le toca según su
+  dirección lo decide el renderer en `draw_projectile()`, no la lógica.
+- **F1** dibuja además la trayectoria prevista mientras el arquero tensa.
+- Tests: 157 en verde (se suma `tests/test_archer.py`).
 
 Decisiones y pendientes:
 - La hoguera sigue siendo decorado dibujado desde los datos del nivel; los esqueletos ya
@@ -260,4 +279,4 @@ Decisiones y pendientes:
   forma indirecta (por las constantes de teclas). Sigue sin dibujar nada.
 - Sigue sin haber máquina de estados del juego; el bucle solo distingue "ejecutándose" o no.
 
-Siguiente paso: el esqueleto arquero (`A`) y el sistema de proyectiles.
+Siguiente paso: Fase 4 (almas, muerte del jugador y mancha de sangre).

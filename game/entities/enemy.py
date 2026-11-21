@@ -134,14 +134,21 @@ class Enemy(Entity):
         self.hit_flash = 0.0
         # Un mismo ataque solo te toca una vez.
         self.attack_has_hit = False
+        # Proyectiles disparados este fotograma; solo los usa el arquero.
+        self.pending_projectiles = []
 
     @classmethod
     def spawn_from_level(cls, level):
         """Crea un enemigo por cada marca del mapa, centrado en su tile."""
-        return [
-            cls(*level.tile_center(tile_x, tile_y), PROFILES[enemy_char])
-            for tile_x, tile_y, enemy_char in level.enemy_spawns
-        ]
+        # Import tardío: Archer hereda de Enemy y no puede importarse arriba.
+        from game.entities.archer import Archer
+
+        enemies = []
+        for tile_x, tile_y, enemy_char in level.enemy_spawns:
+            profile = PROFILES[enemy_char]
+            enemy_class = Archer if profile is ARCHER else cls
+            enemies.append(enemy_class(*level.tile_center(tile_x, tile_y), profile))
+        return enemies
 
     # --- Consultas --------------------------------------------------------
 

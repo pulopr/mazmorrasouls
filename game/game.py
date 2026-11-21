@@ -9,7 +9,7 @@ from game.entities.enemy import Enemy
 from game.entities.player import Intent, Player
 from game.render.ascii_renderer import AsciiRenderer
 from game.render.camera import Camera
-from game.systems import combat
+from game.systems import combat, projectiles
 from game.ui.hud import Hud
 from game.world.level import Level
 
@@ -48,6 +48,7 @@ class Game:
         """Deja el nivel como al empezar: jugador vivo y enemigos en su sitio."""
         self.player = Player.at_level_start(self.level)
         self.enemies = Enemy.spawn_from_level(self.level)
+        self.projectiles = []
         self.camera.follow(self.player.x, self.player.y, self.level)
         self.state = GameState.PLAYING
         self.death_timer = 0.0
@@ -95,6 +96,13 @@ class Game:
             enemy.update(dt, self.level, self.player)
         combat.resolve_enemy_attacks(self.enemies, self.player, self.level)
         combat.separate_enemies(self.enemies, self.player, self.level)
+
+        # Flechas: primero las recién disparadas, luego vuelan todas.
+        self.projectiles += projectiles.collect_pending(self.enemies)
+        self.projectiles = projectiles.update_projectiles(
+            self.projectiles, dt, self.level, [self.player]
+        )
+
         # Los muertos desaparecen del mundo.
         self.enemies = [enemy for enemy in self.enemies if enemy.is_alive]
 
@@ -140,6 +148,8 @@ class Game:
         self.renderer.draw_level(self.level, self.camera)
         for enemy in self.enemies:
             self.renderer.draw_entity(enemy, self.camera)
+        for arrow in self.projectiles:
+            self.renderer.draw_projectile(arrow, self.camera)
         if self.player.is_alive:
             self.renderer.draw_entity(self.player, self.camera)
 
@@ -176,3 +186,6 @@ class Game:
             self.renderer.draw_debug_text(
                 enemy.state.name, enemy.x, enemy.top - 10, self.camera
             )
+            # Trayectoria prevista mientras el arquero tensa el arco.
+            if getattr(enemy, "is_aiming", False):
+                self.renderer.draw_debug_line(*enemy.aim_line(), self.camera)

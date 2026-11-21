@@ -38,6 +38,11 @@ SPRITES = {
     "archer_windup": ("A", (255, 215, 60)),
     # Objetos del mapa: todavía decorado, no se recogen.
     "item": ("*", (90, 160, 255)),
+    # Flechas: el carácter depende de hacia dónde vuelan.
+    "arrow_horizontal": ("-", (245, 210, 140)),
+    "arrow_vertical": ("|", (245, 210, 140)),
+    "arrow_diagonal_down": ("\\", (245, 210, 140)),
+    "arrow_diagonal_up": ("/", (245, 210, 140)),
     # Tajos: el carácter depende de hacia dónde se golpea.
     "slash_horizontal": ("-", (255, 245, 200)),
     "slash_vertical": ("|", (255, 245, 200)),
@@ -73,6 +78,11 @@ def bar_colors_for(bar_id):
     return BAR_COLORS.get(bar_id, FALLBACK_BAR)
 
 
+def arrow_sprite_for(direction):
+    """Elige el carácter de una flecha según hacia dónde vuela."""
+    return slash_sprite_for(direction).replace("slash_", "arrow_")
+
+
 def slash_sprite_for(facing):
     """Elige el carácter del tajo según hacia dónde se golpea.
 
@@ -97,6 +107,7 @@ DEBUG_BOX_COLORS = {
 }
 DEBUG_RADIUS_COLOR = (90, 150, 255)
 DEBUG_TEXT_COLOR = (200, 220, 255)
+DEBUG_AIM_COLOR = (255, 215, 60)
 FALLBACK_DEBUG_BOX = (255, 255, 0)
 
 

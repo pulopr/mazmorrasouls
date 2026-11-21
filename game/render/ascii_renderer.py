@@ -78,6 +78,11 @@ class AsciiRenderer(Renderer):
         """Pinta el carácter de tajo que corresponde a la dirección."""
         self._blit_glyph(ascii_theme.slash_sprite_for(facing), *camera.world_to_screen(x, y))
 
+    def draw_projectile(self, projectile, camera):
+        """El carácter de la flecha sale de su dirección de vuelo."""
+        sprite_id = ascii_theme.arrow_sprite_for(projectile.direction)
+        self._blit_glyph(sprite_id, *camera.world_to_screen(projectile.x, projectile.y))
+
     def draw_world_bar(self, bar_id, x, y, width, height, ratio, camera):
         """Barrita en el mundo: se convierte a pantalla y se delega en draw_bar."""
         screen_x, screen_y = camera.world_to_screen(x, y)
@@ -109,6 +114,16 @@ class AsciiRenderer(Renderer):
         screen_x, screen_y = camera.world_to_screen(x, y)
         label = self.debug_font.render(text, True, ascii_theme.DEBUG_TEXT_COLOR)
         self.surface.blit(label, label.get_rect(center=(round(screen_x), round(screen_y))))
+
+    def draw_debug_line(self, from_x, from_y, to_x, to_y, camera):
+        """Línea entre dos puntos del mundo (trayectoria prevista)."""
+        pygame.draw.line(
+            self.surface,
+            ascii_theme.DEBUG_AIM_COLOR,
+            [round(v) for v in camera.world_to_screen(from_x, from_y)],
+            [round(v) for v in camera.world_to_screen(to_x, to_y)],
+            1,
+        )
 
     def draw_message(self, text):
         """Cartel grande centrado en la pantalla."""

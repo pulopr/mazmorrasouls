@@ -44,6 +44,10 @@ class AsciiRenderer(Renderer):
             int(self.tile_size * FONT_SCALE * ascii_theme.MESSAGE_FONT_SCALE)
         )
         self.debug_font = _load_monospace_font(max(10, int(self.tile_size * 0.4)))
+        self.notice_font = _load_monospace_font(
+            int(self.tile_size * FONT_SCALE * ascii_theme.NOTICE_FONT_SCALE)
+        )
+        self.panel_font = _load_monospace_font(int(self.tile_size * 0.72))
         # Cada glifo se rasteriza una sola vez y se reutiliza.
         self._glyph_cache = {}
 
@@ -63,10 +67,8 @@ class AsciiRenderer(Renderer):
             for tile_x in range(first_col, last_col + 1):
                 self._draw_sprite(level.tile_sprite_at(tile_x, tile_y), tile_x, tile_y, camera)
 
-        # El decorado del mapa. La hoguera todavía no es una entidad; los
-        # enemigos sí, y los dibuja el bucle con draw_entity().
-        for tile_x, tile_y in level.bonfires:
-            self._draw_sprite("bonfire", tile_x, tile_y, camera)
+        # El decorado del mapa. Las hogueras y los enemigos son entidades
+        # y los dibuja el bucle con draw_entity().
         for tile_x, tile_y in level.items:
             self._draw_sprite("item", tile_x, tile_y, camera)
 
@@ -138,6 +140,44 @@ class AsciiRenderer(Renderer):
         rect = label.get_rect()
         setattr(rect, "topright" if align == "right" else "topleft", (round(x), round(y)))
         self.surface.blit(label, rect)
+
+    def draw_notice(self, text):
+        """Aviso breve, algo por encima del centro para no tapar al jugador."""
+        label = self.notice_font.render(text, True, ascii_theme.NOTICE_COLOR)
+        center = (self.surface.get_width() // 2, self.surface.get_height() // 4)
+        self.surface.blit(label, label.get_rect(center=center))
+
+    def draw_panel(self, title, header, options, selected, footer=None):
+        """Panel de menú centrado, con la opción señalada marcada con '>'."""
+        rows = [(title, ascii_theme.PANEL_TITLE_COLOR), ("", None)]
+        rows += [(line, ascii_theme.PANEL_TEXT_COLOR) for line in header]
+        if header:
+            rows.append(("", None))
+        for index, option in enumerate(options):
+            chosen = index == selected
+            prefix = "> " if chosen else "  "
+            colour = ascii_theme.PANEL_SELECTED_COLOR if chosen else ascii_theme.PANEL_TEXT_COLOR
+            rows.append((prefix + option, colour))
+        if footer:
+            rows.append(("", None))
+            rows += [(line, ascii_theme.PANEL_HINT_COLOR) for line in footer]
+
+        line_height = self.panel_font.get_linesize()
+        widest = max(self.panel_font.size(text)[0] for text, _ in rows)
+        padding = line_height
+        width = widest + padding * 2
+        height = line_height * len(rows) + padding * 2
+        left = (self.surface.get_width() - width) // 2
+        top = (self.surface.get_height() - height) // 2
+
+        pygame.draw.rect(self.surface, ascii_theme.PANEL_BACKGROUND, (left, top, width, height))
+        pygame.draw.rect(self.surface, ascii_theme.PANEL_BORDER, (left, top, width, height), 1)
+
+        for row, (text, colour) in enumerate(rows):
+            if not text:
+                continue
+            label = self.panel_font.render(text, True, colour)
+            self.surface.blit(label, (left + padding, top + padding + row * line_height))
 
     def draw_message(self, text):
         """Cartel grande centrado en la pantalla."""

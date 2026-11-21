@@ -22,6 +22,7 @@ SPRITES = {
     "player_invulnerable": ("@", (120, 235, 255)),
     "player_attacking": ("@", (255, 230, 160)),
     "player_hurt": ("@", (255, 110, 110)),
+    "player_drinking": ("@", (150, 220, 160)),
     # Los enemigos van en rojo para no confundirlos de un vistazo con el jugador.
     "skeleton": ("s", (200, 55, 45)),
     # Fogonazo blanco del instante en que encaja un golpe.
@@ -54,7 +55,10 @@ SPRITES = {
     "slash_vertical": ("|", (255, 245, 200)),
     "slash_diagonal_down": ("\\", (255, 245, 200)),
     "slash_diagonal_up": ("/", (255, 245, 200)),
-    "bonfire": ("B", (235, 140, 45)),
+    # Apagada en naranja oscuro; encendida, brillante y parpadeando.
+    "bonfire": ("B", (130, 72, 24)),
+    "bonfire_lit": ("B", (255, 170, 60)),
+    "bonfire_lit_dim": ("B", (220, 120, 35)),
 }
 
 # Aspecto de un `sprite_id` desconocido: visible a propósito, para que un
@@ -128,4 +132,16 @@ MESSAGE_COLOR = (200, 40, 40)
 
 # Texto de la HUD (contador de almas).
 HUD_TEXT_COLOR = (235, 225, 170)
+
+# Avisos breves en el centro (hoguera encendida, no puedes descansar).
+NOTICE_COLOR = (245, 225, 180)
+NOTICE_FONT_SCALE = 1.1
+
+# Menús: panel, título, opciones y la señalada.
+PANEL_BACKGROUND = (14, 13, 18)
+PANEL_BORDER = (120, 110, 90)
+PANEL_TITLE_COLOR = (255, 200, 110)
+PANEL_TEXT_COLOR = (210, 205, 190)
+PANEL_SELECTED_COLOR = (255, 240, 170)
+PANEL_HINT_COLOR = (140, 135, 125)
 MESSAGE_FONT_SCALE = 3.0        # veces el tamaño de la fuente del mundo

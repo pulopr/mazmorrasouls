@@ -153,3 +153,120 @@ class Souls:
             return
         speed = max(config.SOULS_COUNTER_MIN_SPEED, abs(difference) * config.SOULS_COUNTER_CATCHUP)
         self.shown += math.copysign(min(speed * dt, abs(difference)), difference)
+
+
+class EstusFlask:
+    """Los frascos de Estus: curación limitada que se repone descansando."""
+
+    def __init__(self, charges=None):
+        self.maximum = config.ESTUS_CHARGES if charges is None else int(charges)
+        self.charges = self.maximum
+
+    @property
+    def has_any(self):
+        return self.charges > 0
+
+    def drink(self):
+        """Gasta un frasco. Devuelve si quedaba alguno.
+
+        La curación no se aplica aquí: el trago tarda, y lo que cura se
+        cobra al final. El frasco, en cambio, se pierde al empezar —si te
+        interrumpen a media bebida, lo has tirado igual—.
+        """
+        if not self.has_any:
+            return False
+        self.charges -= 1
+        return True
+
+    def refill(self):
+        """Repone todos los frascos (descansar o reaparecer)."""
+        self.charges = self.maximum
+
+
+def level_cost(level):
+    """Almas que cuesta pasar de `level` al siguiente.
+
+    Crece con el nivel, así que cada punto es más caro que el anterior.
+    """
+    return int(
+        config.LEVEL_COST_BASE + config.LEVEL_COST_GROWTH * level ** config.LEVEL_COST_EXPONENT
+    )
+
+
+class CharacterStats:
+    """Vigor, Resistencia y Fuerza, y lo que cada una concede.
+
+    El nivel del personaje es la suma de los puntos subidos por encima
+    de la base, así que no se guarda aparte: se deduce.
+    """
+
+    # Nombre visible -> atributo. El orden es el del menú.
+    ORDER = (("Vigor", "vigor"), ("Resistencia", "endurance"), ("Fuerza", "strength"))
+
+    def __init__(self):
+        self.vigor = config.BASE_VIGOR
+        self.endurance = config.BASE_ENDURANCE
+        self.strength = config.BASE_STRENGTH
+
+    @property
+    def level(self):
+        """Puntos invertidos en total."""
+        return (
+            (self.vigor - config.BASE_VIGOR)
+            + (self.endurance - config.BASE_ENDURANCE)
+            + (self.strength - config.BASE_STRENGTH)
+        )
+
+    @property
+    def next_level_cost(self):
+        return level_cost(self.level)
+
+    # --- Valores derivados ------------------------------------------------
+
+    @property
+    def max_health(self):
+        return config.PLAYER_HEALTH + (self.vigor - config.BASE_VIGOR) * config.HEALTH_PER_VIGOR
+
+    @property
+    def max_stamina(self):
+        return (
+            config.STAMINA_MAX
+            + (self.endurance - config.BASE_ENDURANCE) * config.STAMINA_PER_ENDURANCE
+        )
+
+    @property
+    def stamina_regen(self):
+        return (
+            config.STAMINA_REGEN_RATE
+            + (self.endurance - config.BASE_ENDURANCE) * config.STAMINA_REGEN_PER_ENDURANCE
+        )
+
+    @property
+    def attack_damage(self):
+        return (
+            config.ATTACK_DAMAGE + (self.strength - config.BASE_STRENGTH) * config.DAMAGE_PER_STRENGTH
+        )
+
+    # --- Vista previa y subida -------------------------------------------
+
+    def derived_for(self, attribute):
+        """Qué valor derivado mueve una estadística: (etiqueta, valor)."""
+        return {
+            "vigor": ("Vida", self.max_health),
+            "endurance": ("Estamina", self.max_stamina),
+            "strength": ("Daño", self.attack_damage),
+        }[attribute]
+
+    def preview(self, attribute):
+        """Vista previa de subir un punto: (etiqueta, actual, siguiente)."""
+        label, current = self.derived_for(attribute)
+        after = CharacterStats()
+        after.vigor, after.endurance, after.strength = self.vigor, self.endurance, self.strength
+        setattr(after, attribute, getattr(after, attribute) + 1)
+        return (label, current, after.derived_for(attribute)[1])
+
+    def raise_stat(self, attribute):
+        """Sube un punto. Devuelve cuánto ha cambiado el valor derivado."""
+        _, before, after = self.preview(attribute)
+        setattr(self, attribute, getattr(self, attribute) + 1)
+        return after - before

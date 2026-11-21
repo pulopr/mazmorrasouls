@@ -96,7 +96,7 @@ def resolve_player_attack(player, enemies, level):
             continue
         if hitbox.overlaps(Box.from_entity(enemy)):
             player.attack_hits.add(enemy)
-            enemy.take_hit(config.ATTACK_DAMAGE, player.facing, level)
+            enemy.take_hit(player.attack_damage, player.facing, level)
             hits.append(enemy)
     return hits
 

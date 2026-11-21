@@ -6,6 +6,7 @@ import pygame
 
 from game import config
 from game.entities.bloodstain import Bloodstain
+from game.entities.bonfire import Bonfire
 from game.entities.enemy import Enemy
 from game.entities.player import Intent, Player
 from game.render.ascii_renderer import AsciiRenderer
@@ -14,6 +15,7 @@ from dataclasses import replace
 
 from game.systems import combat, projectiles, targeting
 from game.ui.hud import Hud
+from game.ui.menus import BonfireMenu, LevelUpMenu
 from game.world.level import Level
 
 
@@ -25,7 +27,9 @@ class GameState(Enum):
     """
 
     PLAYING = auto()
-    DEAD = auto()     # cartel de muerte; al acabar, el jugador reaparece
+    DEAD = auto()          # cartel de muerte; al acabar, el jugador reaparece
+    BONFIRE_MENU = auto()  # sentado en la hoguera; el mundo en pausa
+    LEVEL_UP = auto()      # repartiendo almas; el mundo en pausa
 
 
 class Game:
@@ -49,8 +53,9 @@ class Game:
         # Órdenes de fijado pendientes: fijar/soltar y cambiar de objetivo.
         self.lock_requested = False
         self.lock_cycle = 0
-        # Interactuar (E): de momento solo recoger la mancha de sangre.
+        # Interactuar (E): recoger la mancha o usar la hoguera.
         self.interact_requested = False
+        self.drink_requested = False
         # Modo depuración: hitboxes, cajas de colisión y radios (F1).
         self.debug = False
 
@@ -62,6 +67,10 @@ class Game:
         # Élites ya derrotados: no vuelven a aparecer.
         self.defeated_for_good = set()
         self.bloodstain = None
+        self.bonfires = Bonfire.spawn_from_level(self.level)
+        self.menu = None
+        self.notice = None
+        self.notice_timer = 0.0
         self.respawn_enemies()
         self.camera.follow(self.player.x, self.player.y, self.level)
         self.state = GameState.PLAYING
@@ -112,7 +121,9 @@ class Game:
             if event.type == pygame.QUIT:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
-                if event.key == config.KEY_PAUSE:
+                if self.menu is not None:
+                    self.handle_menu_key(event.key)
+                elif event.key == config.KEY_PAUSE:
                     # Fase 3: Esc cierra. Más adelante abrirá la pausa.
                     self.running = False
                 elif event.key == config.KEY_ROLL:
@@ -121,6 +132,8 @@ class Game:
                     self.attack_requested = True
                 elif event.key == config.KEY_INTERACT:
                     self.interact_requested = True
+                elif event.key == config.KEY_ESTUS:
+                    self.drink_requested = True
                 elif event.key == config.KEY_LOCK_ON:
                     self.lock_requested = True
                 elif event.key == config.KEY_LOCK_PREV:
@@ -131,10 +144,17 @@ class Game:
                     self.debug = not self.debug
 
     def update(self, dt):
-        """Avanza la simulación un fotograma."""
+        """Avanza la simulación un fotograma, según el estado del juego."""
         if self.state is GameState.DEAD:
             self.update_death(dt)
             return
+        if self.state in (GameState.BONFIRE_MENU, GameState.LEVEL_UP):
+            # Con un menú abierto el mundo queda en pausa; solo el
+            # contador de almas sigue animándose.
+            self.player.souls.update(dt)
+            return
+
+        self.tick_notice(dt)
 
         intent = self.read_intent()
         intent = self.update_lock(dt, intent)
@@ -155,7 +175,10 @@ class Game:
         )
 
         self.collect_the_dead()
+        for bonfire in self.bonfires:
+            bonfire.update(dt)
         self.update_bloodstain(dt)
+        self.resolve_interaction()
 
         if not self.player.is_alive:
             self.kill_player()
@@ -176,15 +199,118 @@ class Game:
         self.enemies = survivors
 
     def update_bloodstain(self, dt):
-        """Hace parpadear la mancha y la recoge si se pulsa E al lado."""
-        if self.bloodstain is None:
-            self.interact_requested = False
+        """Solo el parpadeo; recogerla es cosa de resolve_interaction()."""
+        if self.bloodstain is not None:
+            self.bloodstain.update(dt)
+
+    def resolve_interaction(self):
+        """Atiende la tecla E, sea lo que sea lo que haya al lado.
+
+        Se resuelve en un único sitio para que la mancha y la hoguera no
+        se pisen la petición entre ellas.
+        """
+        if not self.interact_requested:
+            return
+        self.interact_requested = False
+
+        if self.collect_bloodstain():
+            return
+        self.use_bonfire()
+
+    def collect_bloodstain(self):
+        """Recoge la mancha si el jugador la tiene al lado."""
+        if self.bloodstain is None or not self.bloodstain.can_be_reached_by(self.player):
+            return False
+        self.player.souls.gain(self.bloodstain.collect())
+        self.bloodstain = None
+        return True
+
+    # --- Hogueras ---------------------------------------------------------
+
+    def show_notice(self, text, duration):
+        """Enseña un aviso breve en el centro."""
+        self.notice = text
+        self.notice_timer = duration
+
+    def tick_notice(self, dt):
+        self.notice_timer = max(0.0, self.notice_timer - dt)
+        if self.notice_timer <= 0:
+            self.notice = None
+
+    @property
+    def being_hunted(self):
+        """¿Hay algún enemigo detrás del jugador ahora mismo?"""
+        return any(enemy.is_hunting for enemy in self.enemies)
+
+    def bonfire_within_reach(self):
+        """La hoguera que el jugador tiene al lado, si la hay."""
+        for bonfire in self.bonfires:
+            if bonfire.is_within_reach(self.player):
+                return bonfire
+        return None
+
+    def use_bonfire(self):
+        """E junto a una hoguera: encenderla o sentarse a descansar."""
+        bonfire = self.bonfire_within_reach()
+        if bonfire is None:
             return
 
-        self.bloodstain.update(dt)
-        if self.interact_requested and self.bloodstain.can_be_reached_by(self.player):
-            self.player.souls.gain(self.bloodstain.collect())
-            self.bloodstain = None
+        if bonfire.light():
+            # Primera vez: se enciende y pasa a ser el punto de reaparición.
+            self.player.respawn_point = (bonfire.x, bonfire.y)
+            self.show_notice(config.BONFIRE_LIT_MESSAGE, config.BONFIRE_LIT_NOTICE_DURATION)
+            return
+
+        if self.being_hunted:
+            self.show_notice(config.BONFIRE_BUSY_MESSAGE, config.BONFIRE_BUSY_NOTICE_DURATION)
+            return
+
+        self.rest_at(bonfire)
+
+    def rest_at(self, bonfire):
+        """Descansar: todo a tope, enemigos de vuelta y menú abierto."""
+        self.player.respawn_point = (bonfire.x, bonfire.y)
+        self.player.rest()
+        # Misma lógica que al morir: vuelven todos menos los élites caídos.
+        # La mancha de sangre no se toca: solo morir la destruye.
+        self.respawn_enemies()
+        self.menu = BonfireMenu()
+        self.state = GameState.BONFIRE_MENU
+        self.notice = None
+
+    # --- Menús ------------------------------------------------------------
+
+    def handle_menu_key(self, key):
+        """Navegación común: W/S mueven, E o J confirman, Esc cierra."""
+        if key == config.KEY_MOVE_UP:
+            self.menu.move(-1)
+        elif key == config.KEY_MOVE_DOWN:
+            self.menu.move(1)
+        elif key in (config.KEY_INTERACT, config.KEY_ATTACK_LIGHT):
+            self.confirm_menu()
+        elif key == config.KEY_PAUSE:
+            self.close_menu()
+
+    def confirm_menu(self):
+        """Qué hace confirmar, según el menú abierto."""
+        if self.state is GameState.BONFIRE_MENU:
+            if self.menu.selected == BonfireMenu.LEVEL_UP:
+                self.menu = LevelUpMenu(self.player)
+                self.state = GameState.LEVEL_UP
+            else:
+                self.close_menu()
+        elif self.state is GameState.LEVEL_UP:
+            self.menu.confirm()
+
+    def close_menu(self):
+        """Esc: del menú de nivel se vuelve a la hoguera; de ahí, al juego."""
+        if self.state is GameState.LEVEL_UP:
+            self.menu = BonfireMenu()
+            self.state = GameState.BONFIRE_MENU
+            return
+        self.menu = None
+        self.state = GameState.PLAYING
+        # Levantarse no debe disparar la interacción otra vez.
         self.interact_requested = False
 
     def update_lock(self, dt, intent):
@@ -231,10 +357,12 @@ class Game:
             roll=self.roll_requested,
             run=any(keys[key] for key in config.KEY_RUN),
             attack=self.attack_requested,
+            drink=self.drink_requested,
         )
         # Las peticiones se consumen: valen para un solo fotograma.
         self.roll_requested = False
         self.attack_requested = False
+        self.drink_requested = False
         return intent
 
     # --- Dibujado ---------------------------------------------------------
@@ -242,6 +370,8 @@ class Game:
     def draw(self):
         self.renderer.begin_frame()
         self.renderer.draw_level(self.level, self.camera)
+        for bonfire in self.bonfires:
+            self.renderer.draw_entity(bonfire, self.camera)
         if self.bloodstain is not None:
             self.renderer.draw_entity(self.bloodstain, self.camera)
         for enemy in self.enemies:
@@ -258,9 +388,32 @@ class Game:
         self.hud.draw(self.renderer, self.player)
         if self.debug:
             self.draw_debug()
+        if self.notice:
+            self.renderer.draw_notice(self.notice)
         if self.state is GameState.DEAD:
             self.renderer.draw_message(config.DEATH_MESSAGE)
+        if self.menu is not None:
+            self.draw_menu()
         self.renderer.present()
+
+    def draw_menu(self):
+        """Dibuja el menú abierto con su cabecera y su ayuda."""
+        if self.state is GameState.LEVEL_UP:
+            self.renderer.draw_panel(
+                self.menu.title,
+                self.menu.header_lines(),
+                self.menu.lines(),
+                self.menu.index,
+                footer=[self.menu.preview_line(), "W/S elegir   E subir   Esc volver"],
+            )
+            return
+        self.renderer.draw_panel(
+            self.menu.title,
+            [],
+            self.menu.lines(),
+            self.menu.index,
+            footer=["W/S elegir   E confirmar   Esc salir"],
+        )
 
     def draw_attacks(self):
         """Los tajos solo se ven mientras su golpe está activo."""

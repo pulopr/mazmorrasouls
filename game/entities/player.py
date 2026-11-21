@@ -11,7 +11,7 @@ from enum import Enum, auto
 from game import config
 from game.entities.entity import Entity
 from game.systems import combat
-from game.systems.stats import Health, Souls, Stamina
+from game.systems.stats import CharacterStats, EstusFlask, Health, Souls, Stamina
 
 
 def normalize(dx, dy):
@@ -53,6 +53,7 @@ class Intent:
     roll: bool = False
     run: bool = False
     attack: bool = False
+    drink: bool = False
     # Punto del mundo al que mirar, si hay un objetivo fijado. Con él
     # puesto, la mirada deja de seguir al movimiento. El jugador no sabe
     # nada de lock-on: solo recibe adónde mirar.
@@ -66,6 +67,7 @@ class PlayerState(Enum):
     RUNNING = auto()     # corriendo, gastando estamina
     ROLLING = auto()     # rodando: no acepta órdenes hasta terminar
     ATTACKING = auto()   # a mitad de un golpe
+    DRINKING = auto()    # bebiendo Estus: lento e indefenso
     HURT = auto()        # encajando un golpe: no puede actuar
 
 
@@ -87,13 +89,15 @@ class Player(Entity):
     def __init__(self, x, y):
         super().__init__(x, y, config.PLAYER_WIDTH, config.PLAYER_HEIGHT, "player")
         self.speed = config.PLAYER_SPEED
-        self.health = Health(config.PLAYER_HEALTH)
+        self.stats = CharacterStats()
+        self.health = Health(self.stats.max_health)
+        self.estus = EstusFlask()
         self.souls = Souls()
         # Dónde reaparece al morir. De momento el '@' del mapa; en la
         # Fase 5 lo moverán las hogueras.
         self.respawn_point = (float(x), float(y))
         self.stamina = Stamina(
-            config.STAMINA_MAX, config.STAMINA_REGEN_RATE, config.STAMINA_REGEN_DELAY
+            self.stats.max_stamina, self.stats.stamina_regen, config.STAMINA_REGEN_DELAY
         )
         self.state = PlayerState.NORMAL
         # Última dirección en la que se movió; se rueda hacia aquí cuando
@@ -102,6 +106,9 @@ class Player(Entity):
         self._roll_direction = (0.0, 0.0)
         self._roll_elapsed = 0.0
         self._attack_elapsed = 0.0
+        self._drink_elapsed = 0.0
+        # Si el trago en curso llevaba frasco de verdad.
+        self._drink_has_flask = False
         # Lo que queda sin poder actuar y de invulnerabilidad, tras un golpe.
         self.hurt_timer = 0.0
         self.invulnerable_timer = 0.0
@@ -154,8 +161,22 @@ class Player(Entity):
         return self.is_roll_invulnerable or self.invulnerable_timer > 0
 
     @property
+    def attack_damage(self):
+        """Daño del ataque ligero, según la Fuerza."""
+        return self.stats.attack_damage
+
+    @property
     def is_attacking(self):
         return self.state is PlayerState.ATTACKING
+
+    @property
+    def is_drinking(self):
+        return self.state is PlayerState.DRINKING
+
+    @property
+    def is_busy(self):
+        """¿Está metido en algo que no se puede interrumpir a voluntad?"""
+        return self.is_rolling or self.is_attacking or self.is_drinking or self.is_hurt
 
     @property
     def attack_phase(self):
@@ -175,7 +196,7 @@ class Player(Entity):
         Atacando hay que aguantar hasta la recuperación: rodar antes
         cancelaría el golpe y sería gratis.
         """
-        if self.is_rolling or self.is_hurt:
+        if self.is_rolling or self.is_hurt or self.is_drinking:
             return False
         if self.is_attacking and self.attack_phase is not AttackPhase.RECOVERY:
             return False
@@ -188,14 +209,45 @@ class Player(Entity):
             not self.is_rolling
             and not self.is_attacking
             and not self.is_hurt
+            and not self.is_drinking
             and self.stamina.has_any
         )
+
+    @property
+    def can_drink(self):
+        """Solo se bebe con las manos libres; sin frascos, no pasa nada."""
+        return not self.is_busy
 
     def attack_hitbox(self):
         """Caja del golpe mientras está activo; None el resto del tiempo."""
         if self.attack_phase is not AttackPhase.ACTIVE:
             return None
         return combat.attack_hitbox(self.x, self.y, self.facing, self.half_width)
+
+    def level_up(self, attribute):
+        """Sube una estadística pagando con almas. Devuelve si se ha podido."""
+        cost = self.stats.next_level_cost
+        if not self.souls.spend(cost):
+            return False
+
+        gain = self.stats.raise_stat(attribute)
+        # Vigor y Resistencia suben también el valor actual, no solo el
+        # máximo: subir de nivel cura un poco, como en Dark Souls.
+        if attribute == "vigor":
+            self.health.maximum = self.stats.max_health
+            self.health.current += gain
+        elif attribute == "endurance":
+            self.stamina.maximum = self.stats.max_stamina
+            self.stamina.current += gain
+            self.stamina.regen_rate = self.stats.stamina_regen
+        return True
+
+    def rest(self):
+        """Descansar en una hoguera: todo a tope."""
+        self.health.heal(self.health.maximum)
+        self.stamina.refill()
+        self.estus.refill()
+        self.state = PlayerState.NORMAL
 
     def revive(self):
         """Vuelve a la vida en su punto de reaparición, entero.
@@ -206,11 +258,13 @@ class Player(Entity):
         self.x, self.y = self.respawn_point
         self.health.heal(self.health.maximum)
         self.stamina.refill()
+        self.estus.refill()
         self.state = PlayerState.NORMAL
         self.hurt_timer = 0.0
         self.invulnerable_timer = 0.0
         self._roll_elapsed = 0.0
         self._attack_elapsed = 0.0
+        self._drink_elapsed = 0.0
         self.attack_hits.clear()
         self._refresh_sprite()
 
@@ -259,8 +313,13 @@ class Player(Entity):
             # Rodar manda sobre atacar: es la salida de emergencia.
             self._start_roll(intent.direction)
             self._advance_roll(dt, level)
+        elif self.is_drinking:
+            self._advance_drink(dt, intent, level)
         elif self.is_attacking:
             self._advance_attack(dt, intent, level)
+        elif intent.drink and self.can_drink:
+            self._start_drink()
+            self._advance_drink(dt, intent, level)
         elif intent.attack and self.can_attack:
             self._start_attack(intent.direction)
             self._advance_attack(dt, intent, level)
@@ -316,6 +375,34 @@ class Player(Entity):
         if self.hurt_timer <= 0:
             self.state = PlayerState.NORMAL
 
+    # --- Beber Estus ------------------------------------------------------
+
+    def _start_drink(self):
+        """Se lleva el frasco a la boca. Sin frascos, solo es un gesto."""
+        self._drink_elapsed = 0.0
+        self.state = PlayerState.DRINKING
+        # El frasco se pierde al empezar: si te golpean, lo has tirado.
+        self._drink_has_flask = self.estus.drink()
+
+    def _advance_drink(self, dt, intent, level):
+        """Bebe despacio; la curación llega al terminar el trago."""
+        duration = (
+            config.ESTUS_DRINK_DURATION if self._drink_has_flask else config.ESTUS_EMPTY_DURATION
+        )
+        step = min(dt, duration - self._drink_elapsed)
+        self._drink_elapsed += step
+
+        # Bebiendo apenas se avanza, y no se cambia de rumbo.
+        dx, dy = normalize(*intent.direction)
+        if (dx, dy) != (0.0, 0.0):
+            distance = self.speed * config.ESTUS_MOVE_FACTOR * step
+            level.move_with_collision(self, dx * distance, dy * distance)
+
+        if self._drink_elapsed >= duration - 1e-9:
+            if self._drink_has_flask:
+                self.health.heal(self.health.maximum * config.ESTUS_HEAL_FRACTION)
+            self.state = PlayerState.NORMAL
+
     # --- Atacar -----------------------------------------------------------
 
     def _start_attack(self, direction):
@@ -326,6 +413,9 @@ class Player(Entity):
             # mirada. Con objetivo fijado, siempre hacia el objetivo.
             self.facing = (dx, dy)
         self._attack_elapsed = 0.0
+        self._drink_elapsed = 0.0
+        # Si el trago en curso llevaba frasco de verdad.
+        self._drink_has_flask = False
         # Lo que queda sin poder actuar y de invulnerabilidad, tras un golpe.
         self.hurt_timer = 0.0
         self.invulnerable_timer = 0.0
@@ -389,6 +479,8 @@ class Player(Entity):
             # Parpadeo: alterna entre el glifo normal y el de herido.
             blink = int(self.invulnerable_timer / config.PLAYER_BLINK_INTERVAL) % 2
             self.sprite_id = "player_hurt" if blink else "player"
+        elif self.is_drinking:
+            self.sprite_id = "player_drinking"
         elif self.is_attacking:
             self.sprite_id = "player_attacking"
         else:

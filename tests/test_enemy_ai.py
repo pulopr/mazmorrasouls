@@ -302,18 +302,20 @@ def test_enemy_returns_home_when_the_player_escapes(level, player):
     assert enemy.state is EnemyState.CHASING
     assert math.hypot(enemy.x - home[0], enemy.y - home[1]) > 20
 
-    # El jugador se marcha muy lejos.
+    # El jugador se marcha muy lejos: pasa del radio de abandono.
     player.x, player.y = 10_000, 10_000
     run(enemy, level, player, 0.2)
-    assert enemy.state is EnemyState.RETURNING
+    # Primero va a mirar al último sitio donde lo vio...
+    assert enemy.state is EnemyState.INVESTIGATING
 
-    run(enemy, level, player, 6.0)
+    # ...y al no encontrarlo, acaba volviendo a su puesto.
+    run(enemy, level, player, 12.0)
     assert enemy.state is EnemyState.IDLE
     assert (enemy.x, enemy.y) == home
 
 
-def test_enemy_gives_up_after_losing_sight_for_a_while():
-    """Perder la vista un rato basta, aunque siga cerca."""
+def test_enemy_keeps_chasing_for_a_while_after_losing_sight():
+    """No se rinde al primer parpadeo: insiste un buen rato."""
     level = Level.from_string(WALLED_ROOM)
     player = Player.at_level_start(level)
     enemy = Enemy(*level.tile_center(4, 2))
@@ -322,8 +324,81 @@ def test_enemy_gives_up_after_losing_sight_for_a_while():
 
     # El jugador se esconde tras el muro, sin alejarse.
     player.x, player.y = level.tile_center(7, 2)
-    run(enemy, level, player, config.ENEMY_SIGHT_GRACE + 0.2)
+    run(enemy, level, player, config.SKELETON_SIGHT_GRACE - 0.3)
+    assert enemy.state is EnemyState.CHASING
+
+
+def test_enemy_investigates_the_last_known_position():
+    """Al perderte, va a mirar donde te vio por última vez."""
+    level = Level.from_string(WALLED_ROOM)
+    player = Player.at_level_start(level)
+    enemy = Enemy(*level.tile_center(4, 2))
+
+    enemy.update(DT, level, player)
+    assert enemy.state is EnemyState.CHASING
+    last_seen = enemy.last_seen
+    assert last_seen == (player.x, player.y)
+
+    # Se esconde: el enemigo agota su paciencia y va al último sitio visto.
+    player.x, player.y = level.tile_center(7, 2)
+    run(enemy, level, player, config.SKELETON_SIGHT_GRACE + 0.2)
+    assert enemy.state is EnemyState.INVESTIGATING
+
+    # Llega hasta allí (se mide mientras investiga: después se vuelve).
+    closest = math.inf
+    for _ in range(int(4.0 / DT)):
+        if enemy.state is not EnemyState.INVESTIGATING:
+            break
+        enemy.update(DT, level, player)
+        closest = min(closest, math.hypot(enemy.x - last_seen[0], enemy.y - last_seen[1]))
+    assert closest < config.ENEMY_INVESTIGATE_TOLERANCE
+
+
+def test_investigating_enemy_returns_home_if_nobody_is_there():
+    level = Level.from_string(WALLED_ROOM)
+    player = Player.at_level_start(level)
+    enemy = Enemy(*level.tile_center(4, 2))
+    enemy.update(DT, level, player)
+
+    player.x, player.y = level.tile_center(7, 2)
+    run(enemy, level, player, config.SKELETON_SIGHT_GRACE + 0.2)
+    assert enemy.state is EnemyState.INVESTIGATING
+
+    # Llega, husmea y se rinde.
+    run(enemy, level, player, config.ENEMY_INVESTIGATE_PATIENCE + 8.0)
     assert enemy.state in (EnemyState.RETURNING, EnemyState.IDLE)
+
+
+def test_investigating_enemy_resumes_the_chase_if_it_sees_you_again():
+    level = Level.from_string(WALLED_ROOM)
+    player = Player.at_level_start(level)
+    enemy = Enemy(*level.tile_center(4, 2))
+    enemy.update(DT, level, player)
+
+    hidden = level.tile_center(7, 2)
+    player.x, player.y = hidden
+    run(enemy, level, player, config.SKELETON_SIGHT_GRACE + 0.2)
+    assert enemy.state is EnemyState.INVESTIGATING
+
+    # Vuelves a asomarte.
+    player.x, player.y = level.tile_center(2, 2)
+    enemy.update(DT, level, player)
+    assert enemy.state is EnemyState.CHASING
+
+
+def test_hunting_covers_chasing_and_investigating(level, player):
+    """`is_hunting` es lo que impide descansar en una hoguera."""
+    enemy = Enemy(player.x + 100, player.y)
+    assert not enemy.is_hunting              # en reposo, no
+
+    enemy.update(DT, level, player)
+    assert enemy.is_hunting                  # persiguiendo, sí
+
+    enemy._enter(EnemyState.INVESTIGATING)
+    assert enemy.is_hunting                  # investigando, también
+
+    enemy._enter(EnemyState.RETURNING)
+    assert not enemy.is_hunting              # volviéndose, ya no
 
 
 # --- Nadie se solapa ------------------------------------------------------

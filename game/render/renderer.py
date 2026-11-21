@@ -59,6 +59,14 @@ class Renderer(ABC):
         """Escribe texto de HUD anclado por su esquina izquierda o derecha."""
 
     @abstractmethod
+    def draw_notice(self, text):
+        """Aviso breve, centrado y más discreto que un mensaje grande."""
+
+    @abstractmethod
+    def draw_panel(self, title, header, options, selected, footer=None):
+        """Dibuja un menú: título, cabecera, opciones (una señalada) y pie."""
+
+    @abstractmethod
     def draw_message(self, text):
         """Escribe un mensaje grande en el centro de la pantalla."""
 

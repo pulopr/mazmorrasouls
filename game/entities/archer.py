@@ -47,7 +47,7 @@ class Archer(Enemy):
     def _update_chasing(self, dt, level, player, sees_player):
         """Busca su distancia: ni encima ni fuera de alcance."""
         if self._should_give_up(player):
-            self._enter(EnemyState.RETURNING)
+            self._give_up()
             return
 
         distance = self.distance_to(player)
@@ -69,9 +69,10 @@ class Archer(Enemy):
             self._start_windup(player)
             return
 
-        # Lejos: se acerca hasta su distancia de disparo.
+        # Lejos: se acerca hasta su distancia de disparo. Si no te ve,
+        # tira hacia donde te vio por última vez.
         if distance > config.ARCHER_SHOOT_RANGE:
-            self._move_towards(player.x, player.y, dt, level)
+            self._move_towards(*self._pursuit_target(player, sees_player), dt, level)
 
     def _update_windup(self, dt, level, player, sees_player):
         """Al acabar de tensar, suelta la flecha y se recupera."""

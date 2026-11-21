@@ -22,6 +22,7 @@ class Hud:
         """Pide al renderer que pinte los indicadores del jugador."""
         renderer.draw_bar("health", *self.health_bar_rect(), player.health.ratio)
         renderer.draw_bar("stamina", *self.stamina_bar_rect(), player.stamina.ratio)
+        renderer.draw_hud_text(self.estus_text(player), *self.estus_anchor())
         renderer.draw_hud_text(self.souls_text(player), *self.souls_anchor(), align="right")
 
     def draw_enemy_health(self, renderer, enemies, camera):
@@ -38,6 +39,15 @@ class Hud:
                 enemy.health.ratio,
                 camera,
             )
+
+    def estus_text(self, player):
+        """Frascos de Estus que quedan, junto a las barras."""
+        return f"ESTUS {player.estus.charges}"
+
+    def estus_anchor(self):
+        """Encima de la barra de vida, sin llegar a tocarla."""
+        x, y, _, _ = self.health_bar_rect()
+        return (x, y - config.HUD_TEXT_LINE - config.HUD_BAR_SPACING)
 
     def souls_text(self, player):
         """Lo que se escribe en el contador de almas."""

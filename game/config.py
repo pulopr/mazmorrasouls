@@ -46,6 +46,26 @@ PLAYER_SPEED = 180.0
 
 PLAYER_HEALTH = 100.0
 
+# --- Estadísticas y subida de nivel --------------------------------------
+# Las tres estadísticas parten de este valor; los puntos que se suben por
+# encima son los que cuestan almas. El nivel es la suma de esos puntos.
+
+BASE_VIGOR = 10
+BASE_ENDURANCE = 10
+BASE_STRENGTH = 10
+
+# Cuánto da cada punto por encima de la base.
+HEALTH_PER_VIGOR = 12.0
+STAMINA_PER_ENDURANCE = 8.0
+STAMINA_REGEN_PER_ENDURANCE = 1.5
+DAMAGE_PER_STRENGTH = 3.0
+
+# Coste en almas del siguiente nivel: base + crecimiento * nivel^exponente.
+# Cada nivel cuesta más que el anterior.
+LEVEL_COST_BASE = 60
+LEVEL_COST_GROWTH = 18.0
+LEVEL_COST_EXPONENT = 1.4
+
 # Qué pasa al encajar un golpe: empujón, un momento sin poder actuar y
 # una invulnerabilidad corta para que no te encadenen golpes.
 PLAYER_HURT_KNOCKBACK = 26.0
@@ -100,6 +120,19 @@ RUN_SPEED = PLAYER_SPEED * 1.5
 # Gasto de estamina por segundo mientras se corre.
 RUN_STAMINA_DRAIN = 20.0
 
+# --- Frascos de Estus ----------------------------------------------------
+
+ESTUS_CHARGES = 3
+ESTUS_HEAL_FRACTION = 0.40      # cura este porcentaje de la vida máxima
+
+# Beber es un riesgo: tarda, y mientras tanto apenas te mueves y no
+# puedes ni atacar ni rodar. La curación llega al final del trago.
+ESTUS_DRINK_DURATION = 0.90
+ESTUS_MOVE_FACTOR = 0.22
+
+# Gesto corto al intentar beber sin frascos.
+ESTUS_EMPTY_DURATION = 0.30
+
 # --- Ataque ligero -------------------------------------------------------
 
 ATTACK_DAMAGE = 34.0           # tres golpes matan a un esqueleto
@@ -132,9 +165,16 @@ ENEMY_HEIGHT = 24
 # Parpadeo en blanco al recibir un golpe, en segundos.
 ENEMY_HIT_FLASH = 0.12
 
-# Cuánto aguanta sin ver al jugador antes de darlo por perdido y volverse
-# a su sitio.
-ENEMY_SIGHT_GRACE = 1.2
+# Cuánto aguanta sin ver al jugador antes de dejar de perseguirlo. Al
+# agotarse no se vuelve a casa directamente: primero va a mirar a la
+# última posición donde lo vio.
+ENEMY_SIGHT_GRACE = 3.0
+
+# Margen para dar por llegada la última posición conocida.
+ENEMY_INVESTIGATE_TOLERANCE = 8.0
+
+# Cuánto se queda husmeando allí antes de rendirse y volver a su sitio.
+ENEMY_INVESTIGATE_PATIENCE = 1.5
 
 # El muestreo del rayo de visión: una fracción de tile. Más fino es más
 # preciso y más lento.
@@ -147,7 +187,8 @@ SKELETON_HEALTH = 70.0              # muere en 3 golpes ligeros (34 de daño)
 SKELETON_SPEED = 95.0               # algo más lento que andar (180)
 SKELETON_DAMAGE = 15.0              # 15% de la vida del jugador
 SKELETON_DETECT_RADIUS = 220.0      # ~7 casillas
-SKELETON_LEASH_RADIUS = 420.0       # si te alejas más, se vuelve a su sitio
+SKELETON_LEASH_RADIUS = 900.0       # si te alejas más, se rinde
+SKELETON_SIGHT_GRACE = 3.0          # lo que insiste tras perderte de vista
 SKELETON_ATTACK_RANGE = 36.0        # a qué distancia se planta a golpear
 SKELETON_WINDUP = 0.40              # aviso: da tiempo a rodar
 SKELETON_ACTIVE = 0.12
@@ -167,7 +208,8 @@ ELITE_HEALTH = 260.0                # unos 8 golpes ligeros
 ELITE_SPEED = 110.0
 ELITE_DAMAGE = 34.0                 # un tercio de la vida del jugador
 ELITE_DETECT_RADIUS = 280.0
-ELITE_LEASH_RADIUS = 520.0
+ELITE_LEASH_RADIUS = 1100.0         # el más tozudo de todos
+ELITE_SIGHT_GRACE = 4.0
 ELITE_ATTACK_RANGE = 44.0
 ELITE_WINDUP = 0.55                 # avisa más, pero pega mucho más fuerte
 ELITE_ACTIVE = 0.16
@@ -186,7 +228,8 @@ ARCHER_HEALTH = 45.0                # muere en 2 golpes ligeros
 ARCHER_SPEED = 100.0
 ARCHER_DAMAGE = 10.0                # su golpe cuerpo a cuerpo, flojo
 ARCHER_DETECT_RADIUS = 340.0        # ve más lejos que el esqueleto
-ARCHER_LEASH_RADIUS = 560.0
+ARCHER_LEASH_RADIUS = 800.0
+ARCHER_SIGHT_GRACE = 2.5
 ARCHER_ATTACK_RANGE = 34.0
 ARCHER_WINDUP = 0.30
 ARCHER_ACTIVE = 0.10
@@ -247,12 +290,31 @@ BLOODSTAIN_PICKUP_RADIUS = 44.0
 # Periodo del parpadeo de la mancha, en segundos.
 BLOODSTAIN_BLINK_PERIOD = 0.9
 
+# --- Hogueras ------------------------------------------------------------
+
+BONFIRE_INTERACT_RADIUS = 52.0
+BONFIRE_FLICKER_PERIOD = 1.3    # parpadeo suave del fuego
+
+BONFIRE_LIT_MESSAGE = "HOGUERA ENCENDIDA"
+BONFIRE_LIT_NOTICE_DURATION = 2.0
+BONFIRE_BUSY_MESSAGE = "No puedes descansar con enemigos cerca"
+BONFIRE_BUSY_NOTICE_DURATION = 1.6
+
+# --- Menús ---------------------------------------------------------------
+
+BONFIRE_MENU_TITLE = "HOGUERA"
+BONFIRE_MENU_OPTIONS = ("Subir de nivel", "Salir")
+LEVEL_UP_TITLE = "SUBIR DE NIVEL"
+
 # --- HUD -----------------------------------------------------------------
 
 HUD_MARGIN = 16
 HUD_BAR_WIDTH = 220
 HUD_BAR_HEIGHT = 14
 HUD_BAR_SPACING = 6
+
+# Alto aproximado de una línea de texto de la HUD, para apilar sin solapar.
+HUD_TEXT_LINE = 42
 
 # Barra pequeña sobre los enemigos heridos.
 ENEMY_BAR_WIDTH = 28

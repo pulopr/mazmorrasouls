@@ -87,8 +87,8 @@ La mancha de sangre (`&`) no se escribe en el mapa: nace al morir el jugador.
 | J | Ataque ligero |
 | Espacio | Rodar (esquiva con frames de invulnerabilidad) |
 | Shift | Correr (gasta estamina mientras se mueve) |
-| Q | Beber Estus |
-| E | Interactuar (hoguera, puertas) |
+| Q | Beber Estus (3 cargas; cura al final del trago) |
+| E | Interactuar: encender/usar hoguera, recoger la mancha |
 | Esc | Pausa |
 | Tab | Fijar o soltar el objetivo más cercano (lock-on) |
 | Flecha izq./der. | Cambiar de objetivo fijado |
@@ -118,7 +118,7 @@ La mancha de sangre (`&`) no se escribe en el mapa: nace al morir el jugador.
   - [x] **3a**: ataque del jugador, enemigos con vida y muerte (sin IA).
   - [x] **3b**: IA del esqueleto (persigue, ataca con aviso) y daño al jugador.
 - [x] **Fase 4**: almas, muerte del jugador y mancha de sangre.
-- [ ] **Fase 5**: hogueras (descanso, reaparición de enemigos, Estus) y menú de subida de nivel.
+- [x] **Fase 5**: hogueras (descanso, reaparición de enemigos, Estus) y menú de subida de nivel.
 - [ ] **Fase 6**: HUD completo y pantalla de "HAS MUERTO".
 - [ ] **Fase 7**: más tipos de enemigos, puertas y atajos, primer jefe.
   - [x] Arquero (`A`) y élite (`D`) ya existen; faltan puertas, atajos y jefe.
@@ -127,7 +127,7 @@ La mancha de sangre (`&`) no se escribe en el mapa: nace al morir el jugador.
 
 ## Estado actual
 
-**Fases 0, 1, 2, 3 y 4 terminadas.**
+**Fases 0 a 5 terminadas.**
 
 Fase 0 — esqueleto:
 - Entorno virtual en `.venv/`, `requirements.txt` (pygame-ce 2.5.8, pytest 9.2.0) y `.gitignore`.
@@ -320,6 +320,37 @@ Fase 4 — almas, muerte y mancha de sangre:
   distintas.
 - Tests: 205 en verde (se suma `tests/test_souls.py`).
 
+Fase 5 — hogueras, Estus y subida de nivel:
+- **Persecución más larga** (ajuste de la IA): radios de abandono y paciencia sin verte
+  mucho mayores, con valores por tipo (`*_LEASH_RADIUS`, `*_SIGHT_GRACE`). Al perderte
+  pasa por `EnemyState.INVESTIGATING`: va a `last_seen`, husmea
+  `ENEMY_INVESTIGATE_PATIENCE` y solo entonces vuelve a su sitio. Perseguir sin verte
+  ya no va a tu posición real sino a la última conocida: se acabó la visión a través
+  de los muros.
+- `entities/bonfire.py`: la hoguera es una entidad. Apagada, naranja oscuro; encendida,
+  parpadea entre dos naranjas. **E** la enciende la primera vez (aviso
+  "HOGUERA ENCENDIDA" y pasa a ser `player.respawn_point`); encendida, **E** descansa.
+- **Descansar** restaura vida, estamina y frascos, y repuebla el nivel con la misma
+  `respawn_enemies()` que usa la muerte, así que los élites caídos siguen sin volver.
+  No se puede descansar si algún enemigo `is_hunting` (persiguiendo o investigando):
+  sale un aviso. La mancha de sangre sobrevive al descanso; solo morir la destruye.
+- `ui/menus.py`: `Menu`, `BonfireMenu` y `LevelUpMenu`, lógica pura. Deciden qué líneas
+  se enseñan; `renderer.draw_panel()` las pinta. W/S mueven, E o J confirman, Esc cierra
+  (del menú de nivel se vuelve al de hoguera).
+- **Subida de nivel**: `CharacterStats` en `systems/stats.py` con Vigor, Resistencia y
+  Fuerza. El nivel es la suma de puntos invertidos, no un campo aparte. `level_cost()`
+  crece con el nivel (60, 78, 107, 143...). Vigor sube vida máxima y actual, Resistencia
+  estamina máxima, actual y regeneración, y Fuerza el daño —`combat` usa ahora
+  `player.attack_damage`—. El menú enseña la vista previa ("Vida 100 -> 112").
+- **Estus**: `EstusFlask` con 3 cargas. **Q** bebe; el frasco se gasta al empezar y la
+  curación (40 % de la vida máxima) llega al final del trago, durante el cual apenas te
+  mueves y no puedes atacar ni rodar. Si te golpean, pierdes el frasco sin curarte. Las
+  cargas se reponen al descansar y al reaparecer.
+- `GameState` suma `BONFIRE_MENU` y `LEVEL_UP`, con el mundo en pausa.
+- La tecla **E** se resuelve en un único sitio (`resolve_interaction()`): mancha primero,
+  hoguera después. Antes el manejador de la mancha se comía la pulsación.
+- Tests: 237 en verde (se suma `tests/test_bonfire.py`).
+
 Decisiones y pendientes:
 - La hoguera sigue siendo decorado dibujado desde los datos del nivel; los esqueletos ya
   son entidades.
@@ -331,6 +362,4 @@ Decisiones y pendientes:
   forma indirecta (por las constantes de teclas). Sigue sin dibujar nada.
 - Sigue sin haber máquina de estados del juego; el bucle solo distingue "ejecutándose" o no.
 
-Siguiente paso: Fase 5 (hogueras: descanso, reaparición de enemigos, Estus y menú de
-subida de nivel). La hoguera moverá `player.respawn_point` y `Souls.spend()` ya está
-listo para pagar los niveles.
+Siguiente paso: Fase 6 (HUD completa y pantalla de "HAS MUERTO" definitiva).

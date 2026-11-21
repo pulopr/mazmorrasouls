@@ -26,8 +26,9 @@ class EnemyState(Enum):
     WINDUP = auto()     # se para y avisa de que va a golpear
     ATTACKING = auto()  # el golpe existe y hace daño
     RECOVERY = auto()   # vendido un momento tras golpear
-    STUNNED = auto()    # interrumpido por un golpe tuyo
-    RETURNING = auto()  # te ha perdido, vuelve a su posición inicial
+    STUNNED = auto()        # interrumpido por un golpe tuyo
+    INVESTIGATING = auto()  # va a mirar al último sitio donde te vio
+    RETURNING = auto()      # no te encuentra, vuelve a su posición inicial
 
 
 @dataclass(frozen=True)
@@ -53,9 +54,9 @@ class EnemyProfile:
     stun: float
     can_be_stunned: bool
     souls: int
+    sight_grace: float
     # Si es False, una vez derrotado no vuelve al reaparecer el jugador.
     respawns: bool = True
-    sight_grace: float = config.ENEMY_SIGHT_GRACE
 
 
 SKELETON = EnemyProfile(
@@ -74,6 +75,7 @@ SKELETON = EnemyProfile(
     stun=config.SKELETON_STUN,
     can_be_stunned=config.SKELETON_CAN_BE_STUNNED,
     souls=config.SKELETON_SOULS,
+    sight_grace=config.SKELETON_SIGHT_GRACE,
     respawns=config.SKELETON_RESPAWNS,
 )
 
@@ -93,6 +95,7 @@ ELITE = EnemyProfile(
     stun=config.ELITE_STUN,
     can_be_stunned=config.ELITE_CAN_BE_STUNNED,
     souls=config.ELITE_SOULS,
+    sight_grace=config.ELITE_SIGHT_GRACE,
     respawns=config.ELITE_RESPAWNS,
 )
 
@@ -112,6 +115,7 @@ ARCHER = EnemyProfile(
     stun=config.ARCHER_STUN,
     can_be_stunned=config.ARCHER_CAN_BE_STUNNED,
     souls=config.ARCHER_SOULS,
+    sight_grace=config.ARCHER_SIGHT_GRACE,
     respawns=config.ARCHER_RESPAWNS,
 )
 
@@ -137,8 +141,10 @@ class Enemy(Entity):
         self.state = EnemyState.IDLE
         # Lo que le queda del estado actual, cuando el estado dura un tiempo.
         self.state_timer = 0.0
-        # Desde cuándo no te ve; si pasa de `sight_grace`, se vuelve.
+        # Desde cuándo no te ve; si pasa de `sight_grace`, deja de seguirte.
         self.time_unseen = 0.0
+        # Última posición en la que te vio: adonde va a mirar al perderte.
+        self.last_seen = None
         # Segundos que le quedan de parpadeo blanco tras recibir un golpe.
         self.hit_flash = 0.0
         # Un mismo ataque solo te toca una vez.
@@ -180,6 +186,11 @@ class Enemy(Entity):
     def is_hurt(self):
         """¿Ha perdido algo de vida? Lo usa el HUD para enseñar su barra."""
         return self.health.ratio < 1.0
+
+    @property
+    def is_hunting(self):
+        """¿Está a por el jugador? Incluye ir a mirar dónde lo vio."""
+        return self.state not in (EnemyState.IDLE, EnemyState.RETURNING)
 
     @property
     def is_telegraphing(self):
@@ -234,7 +245,11 @@ class Enemy(Entity):
         self.state_timer = max(0.0, self.state_timer - dt)
 
         sees_player = player.is_alive and self.can_see(player, level)
-        self.time_unseen = 0.0 if sees_player else self.time_unseen + dt
+        if sees_player:
+            self.time_unseen = 0.0
+            self.last_seen = (player.x, player.y)
+        else:
+            self.time_unseen += dt
 
         handler = {
             EnemyState.IDLE: self._update_idle,
@@ -243,6 +258,7 @@ class Enemy(Entity):
             EnemyState.ATTACKING: self._update_attacking,
             EnemyState.RECOVERY: self._update_recovery,
             EnemyState.STUNNED: self._update_stunned,
+            EnemyState.INVESTIGATING: self._update_investigating,
             EnemyState.RETURNING: self._update_returning,
         }[self.state]
         handler(dt, level, player, sees_player)
@@ -261,12 +277,14 @@ class Enemy(Entity):
     def _update_chasing(self, dt, level, player, sees_player):
         """Va hacia ti; si llega a distancia de golpe, avisa."""
         if self._should_give_up(player):
-            self._enter(EnemyState.RETURNING)
+            self._give_up()
             return
-        if self.distance_to(player) <= self.profile.attack_range:
+        if sees_player and self.distance_to(player) <= self.profile.attack_range:
             self._start_windup(player)
             return
-        self._move_towards(player.x, player.y, dt, level)
+        # Sin verte, persigue hacia donde te vio por última vez: no tiene
+        # visión a través de las paredes.
+        self._move_towards(*self._pursuit_target(player, sees_player), dt, level)
 
     def _update_windup(self, dt, level, player, sees_player):
         """Avisa un momento; la dirección ya quedó fijada al empezar."""
@@ -282,12 +300,32 @@ class Enemy(Entity):
     def _update_recovery(self, dt, level, player, sees_player):
         """Vendido un momento antes de volver a la carga."""
         if self.state_timer <= 0:
-            self._enter(EnemyState.CHASING if sees_player else EnemyState.RETURNING)
+            self._resume(sees_player)
 
     def _update_stunned(self, dt, level, player, sees_player):
         """Interrumpido: no hace nada hasta recomponerse."""
         if self.state_timer <= 0:
-            self._enter(EnemyState.CHASING if sees_player else EnemyState.RETURNING)
+            self._resume(sees_player)
+
+    def _update_investigating(self, dt, level, player, sees_player):
+        """Va a mirar al último sitio donde te vio antes de rendirse."""
+        if sees_player:
+            self._enter(EnemyState.CHASING)
+            return
+        if self.last_seen is None:
+            self._enter(EnemyState.RETURNING)
+            return
+
+        target_x, target_y = self.last_seen
+        distance = math.hypot(target_x - self.x, target_y - self.y)
+        if distance > config.ENEMY_INVESTIGATE_TOLERANCE:
+            self._move_towards(target_x, target_y, dt, level)
+            return
+
+        # Ha llegado y no estás: husmea un momento y se rinde.
+        if self.state_timer <= 0:
+            self.last_seen = None
+            self._enter(EnemyState.RETURNING)
 
     def _update_returning(self, dt, level, player, sees_player):
         """Vuelve a su sitio, salvo que te vuelva a ver por el camino."""
@@ -297,11 +335,26 @@ class Enemy(Entity):
         home_x, home_y = self.home
         if math.hypot(home_x - self.x, home_y - self.y) <= self.profile.speed * dt:
             self.x, self.y = home_x, home_y
+            self.last_seen = None
             self._enter(EnemyState.IDLE)
             return
         self._move_towards(home_x, home_y, dt, level)
 
     # --- Apoyo ------------------------------------------------------------
+
+    def _give_up(self):
+        """Deja de perseguirte: primero mira dónde te vio por última vez."""
+        if self.last_seen is None:
+            self._enter(EnemyState.RETURNING)
+        else:
+            self._enter(EnemyState.INVESTIGATING, config.ENEMY_INVESTIGATE_PATIENCE)
+
+    def _resume(self, sees_player):
+        """Qué hacer al salir de un estado que te deja parado."""
+        if sees_player:
+            self._enter(EnemyState.CHASING)
+        else:
+            self._give_up()
 
     def _enter(self, state, duration=0.0):
         """Cambia de estado y fija cuánto dura, si es que dura."""
@@ -320,6 +373,12 @@ class Enemy(Entity):
         if self.distance_to(player) > self.profile.leash_radius:
             return True
         return self.time_unseen > self.profile.sight_grace
+
+    def _pursuit_target(self, player, sees_player):
+        """Adónde se dirige al perseguir: a ti si te ve, o a donde te vio."""
+        if sees_player or self.last_seen is None:
+            return (player.x, player.y)
+        return self.last_seen
 
     def _direction_towards(self, target_x, target_y):
         """Vector unitario hacia un punto; (0, 0) si ya se está ahí."""

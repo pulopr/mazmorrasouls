@@ -24,6 +24,9 @@ CHAR_FLOOR = "."
 CHAR_PLAYER_START = "@"
 CHAR_BONFIRE = "B"
 CHAR_SKELETON = "s"
+CHAR_ARCHER = "A"
+CHAR_ELITE = "D"
+CHAR_ITEM = "*"
 CHAR_DOOR = "+"
 
 # Tiles que de verdad ocupan la cuadrícula, con su `sprite_id` asociado.
@@ -37,10 +40,10 @@ TILE_SPRITES = {
 
 # Caracteres que colocan un enemigo. El mapa guarda el carácter tal cual
 # y es `entities/enemy.py` quien decide qué perfil le toca a cada uno.
-ENEMY_CHARS = (CHAR_SKELETON,)
+ENEMY_CHARS = (CHAR_SKELETON, CHAR_ARCHER, CHAR_ELITE)
 
 # Caracteres de entidad y el tile de suelo que dejan en su lugar.
-ENTITY_CHARS = (CHAR_PLAYER_START, CHAR_BONFIRE, *ENEMY_CHARS)
+ENTITY_CHARS = (CHAR_PLAYER_START, CHAR_BONFIRE, CHAR_ITEM, *ENEMY_CHARS)
 
 # Tiles que bloquean el paso.
 SOLID_TILES = (CHAR_WALL, CHAR_DOOR)
@@ -58,16 +61,20 @@ class Level:
         width, height: dimensiones en tiles.
         player_start: coordenadas (x, y) en tiles del inicio del jugador.
         bonfires: lista de coordenadas (x, y) de hogueras.
+        items: lista de coordenadas (x, y) de objetos (todavía decorado).
         enemy_spawns: lista de (x, y, carácter) de enemigos.
     """
 
-    def __init__(self, tiles, player_start, bonfires, enemy_spawns, tile_size=config.TILE_SIZE):
+    def __init__(
+        self, tiles, player_start, bonfires, enemy_spawns, items=(), tile_size=config.TILE_SIZE
+    ):
         self.tiles = tiles
         self.height = len(tiles)
         self.width = len(tiles[0]) if tiles else 0
         self.player_start = player_start
         self.bonfires = bonfires
         self.enemy_spawns = enemy_spawns
+        self.items = list(items)
         self.tile_size = tile_size
 
     @property
@@ -102,6 +109,7 @@ class Level:
         player_start = None
         bonfires = []
         enemy_spawns = []
+        items = []
 
         for y, row in enumerate(rows):
             tile_row = []
@@ -114,6 +122,8 @@ class Level:
                     bonfires.append((x, y))
                 elif char in ENEMY_CHARS:
                     enemy_spawns.append((x, y, char))
+                elif char == CHAR_ITEM:
+                    items.append((x, y))
                 elif char not in TILE_SPRITES:
                     raise LevelError(f"Carácter desconocido {char!r} en ({x}, {y})")
 
@@ -124,7 +134,7 @@ class Level:
         if player_start is None:
             raise LevelError("El mapa no tiene inicio de jugador '@'")
 
-        return cls(tiles, player_start, bonfires, enemy_spawns, tile_size)
+        return cls(tiles, player_start, bonfires, enemy_spawns, items, tile_size)
 
     @classmethod
     def load(cls, path, tile_size=config.TILE_SIZE):

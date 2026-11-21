@@ -106,3 +106,67 @@ def test_default_level_is_loadable():
     """Sea cual sea el nivel por defecto, el juego debe poder cargarlo."""
     level = Level.load(config.DEFAULT_LEVEL)
     assert level.player_start is not None
+
+
+# --- El primer nivel de verdad -------------------------------------------
+
+
+def test_nivel_01_is_valid():
+    """El primer nivel carga, tiene un solo inicio y una sola hoguera."""
+    level = Level.load(config.LEVELS_DIR / "nivel_01.txt")
+    assert (level.width, level.height) == (64, 72)
+    assert level.player_start is not None
+    assert len(level.bonfires) == 1
+    # Trae los tres tipos de enemigo y los objetos.
+    chars = [char for _, _, char in level.enemy_spawns]
+    assert chars.count("s") == 6
+    assert chars.count("A") == 1
+    assert chars.count("D") == 1
+    assert len(level.items) == 5
+
+
+def test_nivel_01_is_walled_in():
+    level = Level.load(config.LEVELS_DIR / "nivel_01.txt")
+    for x in range(level.width):
+        assert level.is_solid(x, 0) and level.is_solid(x, level.height - 1)
+    for y in range(level.height):
+        assert level.is_solid(0, y) and level.is_solid(level.width - 1, y)
+
+
+def test_nivel_01_floor_is_all_reachable_from_the_start():
+    """Ningún rincón del nivel queda aislado del inicio del jugador."""
+    level = Level.load(config.LEVELS_DIR / "nivel_01.txt")
+    walkable = {
+        (x, y)
+        for y in range(level.height)
+        for x in range(level.width)
+        if not level.is_solid(x, y)
+    }
+
+    # Inundación desde el '@'.
+    reached = {level.player_start}
+    pending = [level.player_start]
+    while pending:
+        x, y = pending.pop()
+        for neighbour in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if neighbour in walkable and neighbour not in reached:
+                reached.add(neighbour)
+                pending.append(neighbour)
+
+    assert reached == walkable, f"{len(walkable - reached)} casillas inalcanzables"
+
+
+def test_every_enemy_char_has_a_profile():
+    """Todo carácter de enemigo del formato tiene su perfil."""
+    from game.entities.enemy import PROFILES
+    from game.world.level import ENEMY_CHARS
+
+    assert set(ENEMY_CHARS) == set(PROFILES)
+
+
+def test_entities_in_nivel_01_stand_on_floor():
+    level = Level.load(config.LEVELS_DIR / "nivel_01.txt")
+    places = [level.player_start, *level.bonfires, *level.items]
+    places += [(x, y) for x, y, _ in level.enemy_spawns]
+    for x, y in places:
+        assert not level.is_solid(x, y)

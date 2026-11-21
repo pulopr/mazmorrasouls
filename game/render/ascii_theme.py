@@ -28,6 +28,16 @@ SPRITES = {
     "skeleton_hit": ("s", (255, 255, 255)),
     # Amarillo bien visible mientras avisa de que va a golpear.
     "skeleton_windup": ("s", (255, 215, 60)),
+    # Élite: morado, para que se distinga del esqueleto de un vistazo.
+    "elite": ("D", (175, 85, 230)),
+    "elite_hit": ("D", (255, 255, 255)),
+    "elite_windup": ("D", (255, 215, 60)),
+    # Arquero: magenta.
+    "archer": ("A", (235, 70, 185)),
+    "archer_hit": ("A", (255, 255, 255)),
+    "archer_windup": ("A", (255, 215, 60)),
+    # Objetos del mapa: todavía decorado, no se recogen.
+    "item": ("*", (90, 160, 255)),
     # Tajos: el carácter depende de hacia dónde se golpea.
     "slash_horizontal": ("-", (255, 245, 200)),
     "slash_vertical": ("|", (255, 245, 200)),

@@ -72,9 +72,45 @@ SKELETON = EnemyProfile(
     can_be_stunned=config.SKELETON_CAN_BE_STUNNED,
 )
 
+ELITE = EnemyProfile(
+    sprite_id="elite",
+    health=config.ELITE_HEALTH,
+    speed=config.ELITE_SPEED,
+    damage=config.ELITE_DAMAGE,
+    detect_radius=config.ELITE_DETECT_RADIUS,
+    leash_radius=config.ELITE_LEASH_RADIUS,
+    attack_range=config.ELITE_ATTACK_RANGE,
+    windup=config.ELITE_WINDUP,
+    active=config.ELITE_ACTIVE,
+    recovery=config.ELITE_RECOVERY,
+    attack_reach=config.ELITE_ATTACK_REACH,
+    attack_width=config.ELITE_ATTACK_WIDTH,
+    stun=config.ELITE_STUN,
+    can_be_stunned=config.ELITE_CAN_BE_STUNNED,
+)
+
+ARCHER = EnemyProfile(
+    sprite_id="archer",
+    health=config.ARCHER_HEALTH,
+    speed=config.ARCHER_SPEED,
+    damage=config.ARCHER_DAMAGE,
+    detect_radius=config.ARCHER_DETECT_RADIUS,
+    leash_radius=config.ARCHER_LEASH_RADIUS,
+    attack_range=config.ARCHER_ATTACK_RANGE,
+    windup=config.ARCHER_WINDUP,
+    active=config.ARCHER_ACTIVE,
+    recovery=config.ARCHER_RECOVERY,
+    attack_reach=config.ARCHER_ATTACK_REACH,
+    attack_width=config.ARCHER_ATTACK_WIDTH,
+    stun=config.ARCHER_STUN,
+    can_be_stunned=config.ARCHER_CAN_BE_STUNNED,
+)
+
 # Perfil que usa cada carácter del mapa.
 PROFILES = {
     "s": SKELETON,
+    "D": ELITE,
+    "A": ARCHER,
 }
 
 

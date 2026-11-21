@@ -72,6 +72,9 @@ tests/
 | `@` | Inicio del jugador |
 | `B` | Hoguera |
 | `s` | Esqueleto (enemigo básico) |
+| `A` | Esqueleto arquero |
+| `D` | Enemigo difícil (élite): más vida, más daño y más almas |
+| `*` | Objeto (por definir; de momento solo decorado) |
 | `+` | Puerta |
 
 ## Controles (iniciales)
@@ -136,8 +139,8 @@ Fase 1 — movimiento:
   `Level` conoce su `tile_size` y expone `pixel_width`/`pixel_height` y `tile_center()`.
 - `game/render/camera.py`: sigue al jugador y se recorta a los bordes del mapa; si el
   mapa cabe entero en la ventana, lo centra. Aritmética pura, sin pygame.
-- `data/levels/test_big.txt` (56x32 tiles, cuatro salas con pasillos) es el nivel por
-  defecto; `data/levels/test.txt` es la sala pequeña que usan los tests.
+- `data/levels/test_big.txt` (56x32 tiles, cuatro salas con pasillos) y
+  `data/levels/test.txt` (sala pequeña) son los mapas de los tests.
 
 Fase 2 — estamina, rodar y correr:
 - `game/systems/stats.py`: clase `Stamina`. Gastar nunca deja la barra en negativo y
@@ -233,6 +236,19 @@ Fase 3b — IA del esqueleto y daño al jugador:
 - **F1** añade el radio de detección y el nombre del estado sobre cada enemigo.
 - Tests: 133 en verde (se suman `tests/test_enemy_ai.py` y `tests/test_game_states.py`).
 
+Primer nivel (`data/levels/nivel_01.txt`):
+- Leyenda ampliada en el cargador: `A` arquero, `D` élite y `*` objeto. Los enemigos se
+  guardan por **carácter** y es `PROFILES` en `enemy.py` quien decide el perfil.
+- El élite usa el comportamiento del esqueleto con su propio bloque de `config.py`:
+  260 de vida, 34 de daño, radios mayores, aviso más largo y mucho más difícil de
+  interrumpir. Se dibuja en morado.
+- Los objetos `*` son decorado azul; todavía no se recogen.
+- `nivel_01.txt` (64x72 tiles, 2048x2304 px) es el nivel por defecto: 6 esqueletos,
+  1 arquero, 1 élite, 1 hoguera y 5 objetos. `test.txt` y `test_big.txt` se mantienen
+  para los tests.
+- Tests: el nivel es válido, está cerrado por muros, todo su suelo es alcanzable desde
+  el `@` (inundación) y todo carácter de enemigo tiene perfil.
+
 Decisiones y pendientes:
 - La hoguera sigue siendo decorado dibujado desde los datos del nivel; los esqueletos ya
   son entidades.
@@ -244,4 +260,4 @@ Decisiones y pendientes:
   forma indirecta (por las constantes de teclas). Sigue sin dibujar nada.
 - Sigue sin haber máquina de estados del juego; el bucle solo distingue "ejecutándose" o no.
 
-Siguiente paso: cargar `nivel_01.txt` (arquero `A`, élite `D` y objetos `*`).
+Siguiente paso: el esqueleto arquero (`A`) y el sistema de proyectiles.

@@ -16,9 +16,9 @@ DATA_DIR = ROOT_DIR / "data"
 LEVELS_DIR = DATA_DIR / "levels"
 
 # Nivel que se carga al arrancar mientras no haya menú ni progresión.
-# `test.txt` es la sala pequeña que usan los tests; `test_big.txt` es más
-# grande que la ventana, para poder probar la cámara.
-DEFAULT_LEVEL = LEVELS_DIR / "test_big.txt"
+# `nivel_01.txt` es el primer nivel de verdad. `test.txt` (sala pequeña) y
+# `test_big.txt` (cuatro salas) se mantienen para los tests.
+DEFAULT_LEVEL = LEVELS_DIR / "nivel_01.txt"
 
 # --- Ventana y tiempo ----------------------------------------------------
 
@@ -156,6 +156,42 @@ SKELETON_ATTACK_REACH = 32.0
 SKELETON_ATTACK_WIDTH = 38.0
 SKELETON_STUN = 0.30                # cuánto se queda aturdido al ser golpeado
 SKELETON_CAN_BE_STUNNED = True      # habrá enemigos que no se interrumpan
+
+# --- Élite (D): enemigo difícil ------------------------------------------
+# Mismo comportamiento que el esqueleto, pero mucho más duro y peligroso.
+# Dará más almas al morir cuando existan las almas (Fase 4).
+
+ELITE_HEALTH = 260.0                # unos 8 golpes ligeros
+ELITE_SPEED = 110.0
+ELITE_DAMAGE = 34.0                 # un tercio de la vida del jugador
+ELITE_DETECT_RADIUS = 280.0
+ELITE_LEASH_RADIUS = 520.0
+ELITE_ATTACK_RANGE = 44.0
+ELITE_WINDUP = 0.55                 # avisa más, pero pega mucho más fuerte
+ELITE_ACTIVE = 0.16
+ELITE_RECOVERY = 0.40
+ELITE_ATTACK_REACH = 42.0
+ELITE_ATTACK_WIDTH = 48.0
+ELITE_STUN = 0.14                   # cuesta mucho más interrumpirlo
+ELITE_CAN_BE_STUNNED = True
+ELITE_SOULS = 300                   # Fase 4
+
+# --- Arquero (A) ---------------------------------------------------------
+# Muy poca vida; su peligro es la distancia. El disparo llega en la Parte 3.
+
+ARCHER_HEALTH = 45.0                # muere en 2 golpes ligeros
+ARCHER_SPEED = 100.0
+ARCHER_DAMAGE = 10.0                # su golpe cuerpo a cuerpo, flojo
+ARCHER_DETECT_RADIUS = 340.0        # ve más lejos que el esqueleto
+ARCHER_LEASH_RADIUS = 560.0
+ARCHER_ATTACK_RANGE = 34.0
+ARCHER_WINDUP = 0.30
+ARCHER_ACTIVE = 0.10
+ARCHER_RECOVERY = 0.25
+ARCHER_ATTACK_REACH = 28.0
+ARCHER_ATTACK_WIDTH = 32.0
+ARCHER_STUN = 0.35                  # se descompone con nada
+ARCHER_CAN_BE_STUNNED = True
 
 # --- Muerte del jugador --------------------------------------------------
 # Provisional hasta la Fase 4: cartel y reinicio del nivel.

@@ -67,6 +67,8 @@ class AsciiRenderer(Renderer):
         # enemigos sí, y los dibuja el bucle con draw_entity().
         for tile_x, tile_y in level.bonfires:
             self._draw_sprite("bonfire", tile_x, tile_y, camera)
+        for tile_x, tile_y in level.items:
+            self._draw_sprite("item", tile_x, tile_y, camera)
 
     def draw_entity(self, entity, camera):
         """Dibuja una entidad en su posición continua, no en su tile."""

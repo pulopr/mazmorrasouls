@@ -21,10 +21,13 @@ SPRITES = {
     "player_rolling": ("@", (115, 140, 185)),
     "player_invulnerable": ("@", (120, 235, 255)),
     "player_attacking": ("@", (255, 230, 160)),
+    "player_hurt": ("@", (255, 110, 110)),
     # Los enemigos van en rojo para no confundirlos de un vistazo con el jugador.
     "skeleton": ("s", (200, 55, 45)),
     # Fogonazo blanco del instante en que encaja un golpe.
     "skeleton_hit": ("s", (255, 255, 255)),
+    # Amarillo bien visible mientras avisa de que va a golpear.
+    "skeleton_windup": ("s", (255, 215, 60)),
     # Tajos: el carácter depende de hacia dónde se golpea.
     "slash_horizontal": ("-", (255, 245, 200)),
     "slash_vertical": ("|", (255, 245, 200)),
@@ -82,9 +85,17 @@ DEBUG_BOX_COLORS = {
     "collision": (90, 150, 255),
     "hitbox": (255, 90, 90),
 }
+DEBUG_RADIUS_COLOR = (90, 150, 255)
+DEBUG_TEXT_COLOR = (200, 220, 255)
 FALLBACK_DEBUG_BOX = (255, 255, 0)
 
 
 def debug_box_color_for(box_id):
     """Color del contorno de una caja de depuración."""
     return DEBUG_BOX_COLORS.get(box_id, FALLBACK_DEBUG_BOX)
+
+
+# --- Mensajes a pantalla completa -----------------------------------------
+
+MESSAGE_COLOR = (200, 40, 40)
+MESSAGE_FONT_SCALE = 3.0        # veces el tamaño de la fuente del mundo

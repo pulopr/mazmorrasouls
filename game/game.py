@@ -1,9 +1,6 @@
-"""Bucle principal del juego.
+"""Bucle principal y estados del juego."""
 
-Abre la ventana, carga un nivel y mueve al jugador a 60 FPS. La máquina de
-estados (menú, jugando, muerte) llegará cuando haya estados que distinguir;
-aquí basta con "se está ejecutando" o no.
-"""
+from enum import Enum, auto
 
 import pygame
 
@@ -17,6 +14,13 @@ from game.ui.hud import Hud
 from game.world.level import Level
 
 
+class GameState(Enum):
+    """En qué pantalla está el juego."""
+
+    PLAYING = auto()
+    DEAD = auto()   # cartel de muerte; al acabar, se reinicia el nivel
+
+
 class Game:
     """Dueño de la ventana, el reloj y el bucle de fotogramas."""
 
@@ -26,19 +30,27 @@ class Game:
         pygame.display.set_caption(config.CAPTION)
         self.clock = pygame.time.Clock()
         self.renderer = AsciiRenderer(self.screen)
-        self.level = Level.load(config.DEFAULT_LEVEL)
-        self.player = Player.at_level_start(self.level)
-        self.enemies = Enemy.spawn_from_level(self.level)
-        self.camera = Camera(config.SCREEN_WIDTH, config.SCREEN_HEIGHT)
-        self.camera.follow(self.player.x, self.player.y, self.level)
         self.hud = Hud(config.SCREEN_WIDTH, config.SCREEN_HEIGHT)
+        self.camera = Camera(config.SCREEN_WIDTH, config.SCREEN_HEIGHT)
+
+        self.level = Level.load(config.DEFAULT_LEVEL)
         self.running = True
         # Rodar y atacar se piden con una pulsación, no manteniendo la
         # tecla: así dejar el dedo encima no encadena acciones.
         self.roll_requested = False
         self.attack_requested = False
-        # Modo depuración: dibuja hitboxes y cajas de colisión (F1).
+        # Modo depuración: hitboxes, cajas de colisión y radios (F1).
         self.debug = False
+
+        self.reset_level()
+
+    def reset_level(self):
+        """Deja el nivel como al empezar: jugador vivo y enemigos en su sitio."""
+        self.player = Player.at_level_start(self.level)
+        self.enemies = Enemy.spawn_from_level(self.level)
+        self.camera.follow(self.player.x, self.player.y, self.level)
+        self.state = GameState.PLAYING
+        self.death_timer = 0.0
 
     # --- Bucle ------------------------------------------------------------
 
@@ -59,7 +71,7 @@ class Game:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == config.KEY_PAUSE:
-                    # Fase 2: Esc cierra. Más adelante abrirá la pausa.
+                    # Fase 3: Esc cierra. Más adelante abrirá la pausa.
                     self.running = False
                 elif event.key == config.KEY_ROLL:
                     self.roll_requested = True
@@ -70,17 +82,39 @@ class Game:
 
     def update(self, dt):
         """Avanza la simulación un fotograma."""
+        if self.state is GameState.DEAD:
+            self.update_death(dt)
+            return
+
         self.player.update(dt, self.read_intent(), self.level)
 
         # El cruce entre jugador y enemigos lo resuelve el sistema de
         # combate, no las entidades: así ninguna necesita conocer a la otra.
         combat.resolve_player_attack(self.player, self.enemies, self.level)
         for enemy in self.enemies:
-            enemy.update(dt, self.level)
+            enemy.update(dt, self.level, self.player)
+        combat.resolve_enemy_attacks(self.enemies, self.player, self.level)
+        combat.separate_enemies(self.enemies, self.player, self.level)
         # Los muertos desaparecen del mundo.
         self.enemies = [enemy for enemy in self.enemies if enemy.is_alive]
 
+        if not self.player.is_alive:
+            self.state = GameState.DEAD
+            self.death_timer = config.DEATH_SCREEN_DURATION
+
         self.camera.follow(self.player.x, self.player.y, self.level)
+
+    def update_death(self, dt):
+        """Cuenta atrás del cartel de muerte y reinicio del nivel.
+
+        Provisional hasta la Fase 4, que traerá hogueras y mancha de sangre.
+        """
+        self.death_timer -= dt
+        # Las peticiones acumuladas no deben dispararse al reaparecer.
+        self.roll_requested = False
+        self.attack_requested = False
+        if self.death_timer <= 0:
+            self.reset_level()
 
     def read_intent(self):
         """Traduce el teclado a un Intent. Aquí no se decide nada más."""
@@ -99,30 +133,46 @@ class Game:
         self.attack_requested = False
         return intent
 
+    # --- Dibujado ---------------------------------------------------------
+
     def draw(self):
         self.renderer.begin_frame()
         self.renderer.draw_level(self.level, self.camera)
         for enemy in self.enemies:
             self.renderer.draw_entity(enemy, self.camera)
-        self.renderer.draw_entity(self.player, self.camera)
+        if self.player.is_alive:
+            self.renderer.draw_entity(self.player, self.camera)
 
-        # El tajo solo se ve mientras el golpe está activo.
-        hitbox = self.player.attack_hitbox()
-        if hitbox is not None:
-            self.renderer.draw_attack(*hitbox.center, self.player.facing, self.camera)
-
+        self.draw_attacks()
         self.hud.draw_enemy_health(self.renderer, self.enemies, self.camera)
         self.hud.draw(self.renderer, self.player)
         if self.debug:
             self.draw_debug()
+        if self.state is GameState.DEAD:
+            self.renderer.draw_message(config.DEATH_MESSAGE)
         self.renderer.present()
 
+    def draw_attacks(self):
+        """Los tajos solo se ven mientras su golpe está activo."""
+        for attacker in [self.player, *self.enemies]:
+            hitbox = attacker.attack_hitbox()
+            if hitbox is not None:
+                self.renderer.draw_attack(*hitbox.center, attacker.facing, self.camera)
+
     def draw_debug(self):
-        """Contornos de las cajas: colisión en azul, hitboxes en rojo."""
+        """Cajas, radios de detección y estado de cada enemigo."""
         for entity in [self.player, *self.enemies]:
             self.renderer.draw_box_outline(
                 combat.Box.from_entity(entity), self.camera, "collision"
             )
-        hitbox = self.player.attack_hitbox()
-        if hitbox is not None:
-            self.renderer.draw_box_outline(hitbox, self.camera, "hitbox")
+            hitbox = entity.attack_hitbox()
+            if hitbox is not None:
+                self.renderer.draw_box_outline(hitbox, self.camera, "hitbox")
+
+        for enemy in self.enemies:
+            self.renderer.draw_circle_outline(
+                enemy.x, enemy.y, enemy.profile.detect_radius, self.camera
+            )
+            self.renderer.draw_debug_text(
+                enemy.state.name, enemy.x, enemy.top - 10, self.camera
+            )

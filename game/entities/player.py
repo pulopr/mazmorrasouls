@@ -62,6 +62,7 @@ class PlayerState(Enum):
     RUNNING = auto()     # corriendo, gastando estamina
     ROLLING = auto()     # rodando: no acepta órdenes hasta terminar
     ATTACKING = auto()   # a mitad de un golpe
+    HURT = auto()        # encajando un golpe: no puede actuar
 
 
 class AttackPhase(Enum):
@@ -93,6 +94,9 @@ class Player(Entity):
         self._roll_direction = (0.0, 0.0)
         self._roll_elapsed = 0.0
         self._attack_elapsed = 0.0
+        # Lo que queda sin poder actuar y de invulnerabilidad, tras un golpe.
+        self.hurt_timer = 0.0
+        self.invulnerable_timer = 0.0
         # Enemigos ya alcanzados por el ataque en curso, para no golpear
         # dos veces con el mismo tajo. Se vacía al empezar cada ataque.
         self.attack_hits = set()
@@ -114,15 +118,30 @@ class Player(Entity):
         return self.state is PlayerState.RUNNING
 
     @property
-    def is_invulnerable(self):
-        """¿Está en los i-frames del rodar?
+    def is_alive(self):
+        return self.health.is_alive
 
-        Todavía no hay nada que haga daño; esto queda listo para la Fase 3.
-        """
+    @property
+    def is_hurt(self):
+        """¿Está encajando un golpe, sin poder actuar?"""
+        return self.state is PlayerState.HURT
+
+    @property
+    def is_roll_invulnerable(self):
+        """¿Está en los i-frames del rodar?"""
         return (
             self.is_rolling
             and config.ROLL_IFRAME_START <= self._roll_elapsed < config.ROLL_IFRAME_END
         )
+
+    @property
+    def is_invulnerable(self):
+        """¿Es inmune al daño ahora mismo?
+
+        Dos motivos: los i-frames del rodar o el respiro que se concede
+        tras encajar un golpe, para que no te encadenen varios seguidos.
+        """
+        return self.is_roll_invulnerable or self.invulnerable_timer > 0
 
     @property
     def is_attacking(self):
@@ -146,7 +165,7 @@ class Player(Entity):
         Atacando hay que aguantar hasta la recuperación: rodar antes
         cancelaría el golpe y sería gratis.
         """
-        if self.is_rolling:
+        if self.is_rolling or self.is_hurt:
             return False
         if self.is_attacking and self.attack_phase is not AttackPhase.RECOVERY:
             return False
@@ -154,14 +173,39 @@ class Player(Entity):
 
     @property
     def can_attack(self):
-        """No se ataca rodando, ni encadenando sobre un golpe sin terminar."""
-        return not self.is_rolling and not self.is_attacking and self.stamina.has_any
+        """No se ataca rodando ni aturdido, ni encadenando sobre otro golpe."""
+        return (
+            not self.is_rolling
+            and not self.is_attacking
+            and not self.is_hurt
+            and self.stamina.has_any
+        )
 
     def attack_hitbox(self):
         """Caja del golpe mientras está activo; None el resto del tiempo."""
         if self.attack_phase is not AttackPhase.ACTIVE:
             return None
         return combat.attack_hitbox(self.x, self.y, self.facing, self.half_width)
+
+    # --- Recibir golpes ---------------------------------------------------
+
+    def take_hit(self, damage, direction, level):
+        """Encaja un golpe, si es que llega a entrar.
+
+        Devuelve False —y no pasa nada— si en este momento es inmune: en
+        los i-frames del rodar o durante el respiro de un golpe anterior.
+        """
+        if self.is_invulnerable:
+            return False
+
+        self.health.take_damage(damage)
+        combat.apply_knockback(self, direction, config.PLAYER_HURT_KNOCKBACK, level)
+        self.hurt_timer = config.PLAYER_HURT_STUN
+        self.invulnerable_timer = config.PLAYER_HURT_INVULNERABILITY
+        self.state = PlayerState.HURT
+        # El golpe corta en seco lo que estuviera haciendo.
+        self.attack_hits.clear()
+        return True
 
     # --- Fotograma --------------------------------------------------------
 
@@ -170,8 +214,11 @@ class Player(Entity):
         # La estamina se actualiza primero: así un gasto de este fotograma
         # reinicia el respiro y no se recupera nada hasta pasado el retraso.
         self.stamina.update(dt)
+        self.invulnerable_timer = max(0.0, self.invulnerable_timer - dt)
 
-        if self.is_rolling:
+        if self.is_hurt:
+            self._advance_hurt(dt)
+        elif self.is_rolling:
             # Rodando no se acepta nada: ni cambiar de rumbo ni rodar otra vez.
             self._advance_roll(dt, level)
         elif intent.roll and self.can_roll:
@@ -225,6 +272,14 @@ class Player(Entity):
         if self._roll_elapsed >= config.ROLL_DURATION - 1e-9:
             self.state = PlayerState.NORMAL
 
+    # --- Encajar ----------------------------------------------------------
+
+    def _advance_hurt(self, dt):
+        """Aguanta el aturdimiento del golpe recibido, sin poder actuar."""
+        self.hurt_timer = max(0.0, self.hurt_timer - dt)
+        if self.hurt_timer <= 0:
+            self.state = PlayerState.NORMAL
+
     # --- Atacar -----------------------------------------------------------
 
     def _start_attack(self, direction):
@@ -234,6 +289,9 @@ class Player(Entity):
             # Se golpea hacia donde se empuja; si no se empuja, hacia la mirada.
             self.facing = (dx, dy)
         self._attack_elapsed = 0.0
+        # Lo que queda sin poder actuar y de invulnerabilidad, tras un golpe.
+        self.hurt_timer = 0.0
+        self.invulnerable_timer = 0.0
         self.attack_hits.clear()
         self.state = PlayerState.ATTACKING
         # Puede dejar la barra a 0, pero nunca en negativo.
@@ -281,10 +339,14 @@ class Player(Entity):
 
     def _refresh_sprite(self):
         """Elige el `sprite_id` según el estado; el color lo pone el tema."""
-        if self.is_invulnerable:
+        if self.is_roll_invulnerable:
             self.sprite_id = "player_invulnerable"
         elif self.is_rolling:
             self.sprite_id = "player_rolling"
+        elif self.invulnerable_timer > 0:
+            # Parpadeo: alterna entre el glifo normal y el de herido.
+            blink = int(self.invulnerable_timer / config.PLAYER_BLINK_INTERVAL) % 2
+            self.sprite_id = "player_hurt" if blink else "player"
         elif self.is_attacking:
             self.sprite_id = "player_attacking"
         else:

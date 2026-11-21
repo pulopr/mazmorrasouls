@@ -46,6 +46,15 @@ PLAYER_SPEED = 180.0
 
 PLAYER_HEALTH = 100.0
 
+# Qué pasa al encajar un golpe: empujón, un momento sin poder actuar y
+# una invulnerabilidad corta para que no te encadenen golpes.
+PLAYER_HURT_KNOCKBACK = 26.0
+PLAYER_HURT_STUN = 0.22
+PLAYER_HURT_INVULNERABILITY = 0.75
+
+# Cada cuánto alterna el parpadeo del @ mientras es invulnerable.
+PLAYER_BLINK_INTERVAL = 0.07
+
 # --- Estamina ------------------------------------------------------------
 
 STAMINA_MAX = 100.0
@@ -115,15 +124,44 @@ ATTACK_MOVE_FACTOR = 0.15
 # Empujón que recibe el enemigo golpeado, en píxeles.
 ATTACK_KNOCKBACK = 18.0
 
-# --- Enemigos ------------------------------------------------------------
+# --- Enemigos (común) ----------------------------------------------------
 
 ENEMY_WIDTH = 24
 ENEMY_HEIGHT = 24
 
-SKELETON_HEALTH = 100.0
-
 # Parpadeo en blanco al recibir un golpe, en segundos.
 ENEMY_HIT_FLASH = 0.12
+
+# Cuánto aguanta sin ver al jugador antes de darlo por perdido y volverse
+# a su sitio.
+ENEMY_SIGHT_GRACE = 1.2
+
+# El muestreo del rayo de visión: una fracción de tile. Más fino es más
+# preciso y más lento.
+SIGHT_RAY_STEP = 0.25
+
+# --- Esqueleto (enemigo básico) ------------------------------------------
+# Poca vida, ataque rápido con aviso corto pero visible, y daño moderado.
+
+SKELETON_HEALTH = 70.0              # muere en 3 golpes ligeros (34 de daño)
+SKELETON_SPEED = 95.0               # algo más lento que andar (180)
+SKELETON_DAMAGE = 15.0              # 15% de la vida del jugador
+SKELETON_DETECT_RADIUS = 220.0      # ~7 casillas
+SKELETON_LEASH_RADIUS = 420.0       # si te alejas más, se vuelve a su sitio
+SKELETON_ATTACK_RANGE = 36.0        # a qué distancia se planta a golpear
+SKELETON_WINDUP = 0.40              # aviso: da tiempo a rodar
+SKELETON_ACTIVE = 0.12
+SKELETON_RECOVERY = 0.35            # queda vendido un momento
+SKELETON_ATTACK_REACH = 32.0
+SKELETON_ATTACK_WIDTH = 38.0
+SKELETON_STUN = 0.30                # cuánto se queda aturdido al ser golpeado
+SKELETON_CAN_BE_STUNNED = True      # habrá enemigos que no se interrumpan
+
+# --- Muerte del jugador --------------------------------------------------
+# Provisional hasta la Fase 4: cartel y reinicio del nivel.
+
+DEATH_MESSAGE = "HAS MUERTO"
+DEATH_SCREEN_DURATION = 2.5
 
 # --- HUD -----------------------------------------------------------------
 

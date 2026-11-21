@@ -27,7 +27,8 @@ def test_player_start_and_spawns():
     level = Level.from_string(SMALL_MAP)
     assert level.player_start == (1, 1)
     assert level.bonfires == [(2, 2)]
-    assert level.enemy_spawns == [(3, 1, "skeleton")]
+    # El mapa guarda el carácter; qué perfil le toca lo decide enemy.py.
+    assert level.enemy_spawns == [(3, 1, "s")]
 
 
 def test_entities_leave_floor_underneath():

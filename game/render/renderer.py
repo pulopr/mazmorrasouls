@@ -35,6 +35,18 @@ class Renderer(ABC):
         """Dibuja el contorno de una caja del mundo. Solo para depurar."""
 
     @abstractmethod
+    def draw_circle_outline(self, x, y, radius, camera):
+        """Dibuja una circunferencia del mundo. Solo para depurar."""
+
+    @abstractmethod
+    def draw_debug_text(self, text, x, y, camera):
+        """Escribe una etiqueta pequeña en un punto del mundo. Solo para depurar."""
+
+    @abstractmethod
+    def draw_message(self, text):
+        """Escribe un mensaje grande en el centro de la pantalla."""
+
+    @abstractmethod
     def draw_bar(self, bar_id, x, y, width, height, ratio):
         """Dibuja una barra del HUD llena en `ratio` (de 0 a 1).
 

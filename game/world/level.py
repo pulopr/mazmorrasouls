@@ -35,8 +35,12 @@ TILE_SPRITES = {
     CHAR_DOOR: "door",
 }
 
+# Caracteres que colocan un enemigo. El mapa guarda el carácter tal cual
+# y es `entities/enemy.py` quien decide qué perfil le toca a cada uno.
+ENEMY_CHARS = (CHAR_SKELETON,)
+
 # Caracteres de entidad y el tile de suelo que dejan en su lugar.
-ENTITY_CHARS = (CHAR_PLAYER_START, CHAR_BONFIRE, CHAR_SKELETON)
+ENTITY_CHARS = (CHAR_PLAYER_START, CHAR_BONFIRE, *ENEMY_CHARS)
 
 # Tiles que bloquean el paso.
 SOLID_TILES = (CHAR_WALL, CHAR_DOOR)
@@ -54,7 +58,7 @@ class Level:
         width, height: dimensiones en tiles.
         player_start: coordenadas (x, y) en tiles del inicio del jugador.
         bonfires: lista de coordenadas (x, y) de hogueras.
-        enemy_spawns: lista de (x, y, sprite_id) de enemigos.
+        enemy_spawns: lista de (x, y, carácter) de enemigos.
     """
 
     def __init__(self, tiles, player_start, bonfires, enemy_spawns, tile_size=config.TILE_SIZE):
@@ -108,8 +112,8 @@ class Level:
                     player_start = (x, y)
                 elif char == CHAR_BONFIRE:
                     bonfires.append((x, y))
-                elif char == CHAR_SKELETON:
-                    enemy_spawns.append((x, y, "skeleton"))
+                elif char in ENEMY_CHARS:
+                    enemy_spawns.append((x, y, char))
                 elif char not in TILE_SPRITES:
                     raise LevelError(f"Carácter desconocido {char!r} en ({x}, {y})")
 
@@ -149,6 +153,29 @@ class Level:
             tile_x * self.tile_size + self.tile_size / 2,
             tile_y * self.tile_size + self.tile_size / 2,
         )
+
+    def has_line_of_sight(self, from_x, from_y, to_x, to_y):
+        """¿Se ven dos puntos del mundo sin un muro de por medio?
+
+        Trazado de rayo sencillo: se recorre el segmento a pasos de una
+        fracción de tile (`SIGHT_RAY_STEP`) y se mira si alguno cae en un
+        muro. Es aproximado —un paso podría saltarse una esquina muy
+        justa— pero basta de sobra para decidir si un enemigo te ve, y es
+        mucho más simple que un DDA.
+        """
+        distance = math.hypot(to_x - from_x, to_y - from_y)
+        if distance == 0:
+            return True
+
+        step_length = self.tile_size * config.SIGHT_RAY_STEP
+        steps = max(1, math.ceil(distance / step_length))
+        for step in range(1, steps + 1):
+            fraction = step / steps
+            x = from_x + (to_x - from_x) * fraction
+            y = from_y + (to_y - from_y) * fraction
+            if self.is_solid(math.floor(x / self.tile_size), math.floor(y / self.tile_size)):
+                return False
+        return True
 
     # --- Colisión ---------------------------------------------------------
 

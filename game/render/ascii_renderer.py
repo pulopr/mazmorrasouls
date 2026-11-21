@@ -39,6 +39,11 @@ class AsciiRenderer(Renderer):
         self.surface = surface
         self.tile_size = config.TILE_SIZE
         self.font = _load_monospace_font(int(self.tile_size * FONT_SCALE))
+        # Fuentes aparte para los carteles y para las etiquetas de depuración.
+        self.message_font = _load_monospace_font(
+            int(self.tile_size * FONT_SCALE * ascii_theme.MESSAGE_FONT_SCALE)
+        )
+        self.debug_font = _load_monospace_font(max(10, int(self.tile_size * 0.4)))
         # Cada glifo se rasteriza una sola vez y se reutiliza.
         self._glyph_cache = {}
 
@@ -85,6 +90,29 @@ class AsciiRenderer(Renderer):
             (round(screen_x), round(screen_y), round(box.width), round(box.height)),
             1,
         )
+
+    def draw_circle_outline(self, x, y, radius, camera):
+        """Circunferencia en coordenadas del mundo (radio de detección)."""
+        screen_x, screen_y = camera.world_to_screen(x, y)
+        pygame.draw.circle(
+            self.surface,
+            ascii_theme.DEBUG_RADIUS_COLOR,
+            (round(screen_x), round(screen_y)),
+            round(radius),
+            1,
+        )
+
+    def draw_debug_text(self, text, x, y, camera):
+        """Etiqueta pequeña sobre un punto del mundo."""
+        screen_x, screen_y = camera.world_to_screen(x, y)
+        label = self.debug_font.render(text, True, ascii_theme.DEBUG_TEXT_COLOR)
+        self.surface.blit(label, label.get_rect(center=(round(screen_x), round(screen_y))))
+
+    def draw_message(self, text):
+        """Cartel grande centrado en la pantalla."""
+        label = self.message_font.render(text, True, ascii_theme.MESSAGE_COLOR)
+        center = (self.surface.get_width() // 2, self.surface.get_height() // 2)
+        self.surface.blit(label, label.get_rect(center=center))
 
     def draw_bar(self, bar_id, x, y, width, height, ratio):
         """Barra del HUD: fondo, relleno proporcional y borde."""

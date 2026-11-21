@@ -275,7 +275,7 @@ def test_hit_enemy_flashes_and_stops_flashing(player, level, enemy):
 
     elapsed = 0.0
     while enemy.hit_flash > 0 and elapsed < 5:
-        enemy.update(DT, level)
+        enemy.update(DT, level, player)
         elapsed += DT
 
     assert math.isclose(elapsed, config.ENEMY_HIT_FLASH, abs_tol=DT)
@@ -307,10 +307,11 @@ def test_enemies_collide_with_walls(level):
     assert math.isclose(enemy.left, level.tile_size)
 
 
-def test_enemy_stays_still_without_ai(level):
-    """En la Fase 3a los esqueletos son muñecos: no se mueven solos."""
+def test_enemy_stays_still_while_it_has_not_seen_anyone(level, player):
+    """Sin jugador a la vista, el esqueleto se queda en su sitio."""
     enemy = Enemy(*level.tile_center(5, 3))
+    player.x, player.y = 10_000, 10_000   # lejísimos, fuera de su radio
     before = (enemy.x, enemy.y)
     for _ in range(120):
-        enemy.update(DT, level)
+        enemy.update(DT, level, player)
     assert (enemy.x, enemy.y) == before

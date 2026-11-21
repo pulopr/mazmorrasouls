@@ -109,7 +109,7 @@ tests/
 - [x] **Fase 2**: estamina y rodar con invulnerabilidad.
 - [ ] **Fase 3**: enemigo básico (patrulla, persigue, ataque con aviso previo), ataque del jugador, vida y muerte de enemigos.
   - [x] **3a**: ataque del jugador, enemigos con vida y muerte (sin IA).
-  - [ ] **3b**: IA del esqueleto (patrulla, persigue, ataca con aviso) y daño al jugador.
+  - [x] **3b**: IA del esqueleto (persigue, ataca con aviso) y daño al jugador.
 - [ ] **Fase 4**: almas, muerte del jugador y mancha de sangre.
 - [ ] **Fase 5**: hogueras (descanso, reaparición de enemigos, Estus) y menú de subida de nivel.
 - [ ] **Fase 6**: HUD completo y pantalla de "HAS MUERTO".
@@ -119,7 +119,7 @@ tests/
 
 ## Estado actual
 
-**Fases 0, 1, 2 y 3a terminadas.**
+**Fases 0, 1, 2, 3a y 3b terminadas.**
 
 Fase 0 — esqueleto:
 - Entorno virtual en `.venv/`, `requirements.txt` (pygame-ce 2.5.8, pytest 9.2.0) y `.gitignore`.
@@ -205,16 +205,43 @@ Fase 3a — ataque y enemigos con vida:
   aterrizaba al otro lado de la pared sin comprobar las casillas que cruzaba.
 - Tests: 104 en verde (se suma `tests/test_combat.py`).
 
+Fase 3b — IA del esqueleto y daño al jugador:
+- `EnemyState`: IDLE, CHASING, WINDUP, ATTACKING, RECOVERY, STUNNED, RETURNING. Un
+  método por estado (`_update_idle`, `_update_chasing`...), todos con la misma firma,
+  para que un tipo nuevo redefina solo el que le interese.
+- `EnemyProfile`: dataclass con todos los números de un tipo (vida, velocidad, radios,
+  tiempos del ataque, aturdimiento). Crear una variante es escribir un perfil; el
+  esqueleto no redefine ningún método. `PROFILES` asocia carácter del mapa -> perfil.
+- `Level.has_line_of_sight()`: trazado de rayo muestreando el segmento cada
+  `SIGHT_RAY_STEP` de tile. Aproximado pero suficiente, y mucho más simple que un DDA.
+- Detecta por radio **y** línea de visión. Se planta a `attack_range`, avisa en amarillo
+  (`skeleton_windup`) durante `SKELETON_WINDUP`, golpea con la dirección **fijada al
+  empezar el aviso**, y se queda vendido en la recuperación. Si te alejas del radio de
+  abandono o te pierde de vista más de `ENEMY_SIGHT_GRACE`, vuelve a su sitio.
+- **Aturdimiento**: un golpe tuyo cancela el aviso y lo deja `STUNNED`. Se controla con
+  `can_be_stunned` por perfil, pensando en enemigos que no se interrumpan.
+- **Daño al jugador**: `PlayerState.HURT`, retroceso, aturdimiento corto e
+  invulnerabilidad (`PLAYER_HURT_INVULNERABILITY`) con parpadeo del `@`. Los i-frames
+  del rodar y esa invulnerabilidad se consultan juntos en `is_invulnerable`;
+  `is_roll_invulnerable` queda para el color del rodar. Cada ataque enemigo acierta una
+  sola vez (`attack_has_hit`).
+- `combat.separate_enemies()`: empuje suave que deshace solapamientos entre enemigos y
+  contra el jugador, respetando muros. Al jugador no se le mueve: de los dos cede el
+  enemigo.
+- `GameState` (PLAYING / DEAD): al morir sale "HAS MUERTO" unos segundos y el nivel se
+  reinicia con `Game.reset_level()`. Provisional hasta la Fase 4.
+- **F1** añade el radio de detección y el nombre del estado sobre cada enemigo.
+- Tests: 133 en verde (se suman `tests/test_enemy_ai.py` y `tests/test_game_states.py`).
+
 Decisiones y pendientes:
 - La hoguera sigue siendo decorado dibujado desde los datos del nivel; los esqueletos ya
   son entidades.
-- `is_invulnerable` y la vida del jugador ya funcionan, pero todavía nada le hace daño:
-  se usarán en la Fase 3b.
+- Los esqueletos no patrullan: en reposo se quedan quietos en su sitio. La patrulla
+  por rutas se verá cuando haga falta.
 - La estamina se actualiza al principio del fotograma, antes de resolver la acción. Por
   eso basta con que haya un resto —aunque sea el que acaba de regenerarse— para rodar.
 - `level.py` importa `config` para conocer el tamaño de tile, así que arrastra pygame de
   forma indirecta (por las constantes de teclas). Sigue sin dibujar nada.
 - Sigue sin haber máquina de estados del juego; el bucle solo distingue "ejecutándose" o no.
 
-Siguiente paso: Fase 3b (IA del esqueleto: patrulla, persecución y ataque con aviso
-previo, y daño al jugador).
+Siguiente paso: cargar `nivel_01.txt` (arquero `A`, élite `D` y objetos `*`).

@@ -23,5 +23,12 @@ class Renderer(ABC):
         """Dibuja una entidad, vista desde `camera`."""
 
     @abstractmethod
+    def draw_bar(self, bar_id, x, y, width, height, ratio):
+        """Dibuja una barra del HUD llena en `ratio` (de 0 a 1).
+
+        El HUD decide qué barra y dónde; el color lo pone el renderer.
+        """
+
+    @abstractmethod
     def present(self):
         """Vuelca el fotograma terminado a la pantalla."""

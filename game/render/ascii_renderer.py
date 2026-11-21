@@ -71,6 +71,17 @@ class AsciiRenderer(Renderer):
         screen_x, screen_y = camera.world_to_screen(entity.x, entity.y)
         self.surface.blit(glyph, glyph.get_rect(center=(round(screen_x), round(screen_y))))
 
+    def draw_bar(self, bar_id, x, y, width, height, ratio):
+        """Barra del HUD: fondo, relleno proporcional y borde."""
+        fill_color, back_color = ascii_theme.bar_colors_for(bar_id)
+        ratio = max(0.0, min(1.0, ratio))
+
+        pygame.draw.rect(self.surface, back_color, (x, y, width, height))
+        filled_width = round(width * ratio)
+        if filled_width > 0:
+            pygame.draw.rect(self.surface, fill_color, (x, y, filled_width, height))
+        pygame.draw.rect(self.surface, ascii_theme.BAR_BORDER_COLOR, (x, y, width, height), 1)
+
     def present(self):
         pygame.display.flip()
 

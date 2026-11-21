@@ -81,6 +81,7 @@ tests/
 | WASD | Moverse |
 | J | Ataque ligero |
 | Espacio | Rodar (esquiva con frames de invulnerabilidad) |
+| Shift | Correr (gasta estamina mientras se mueve) |
 | Q | Beber Estus |
 | E | Interactuar (hoguera, puertas) |
 | Esc | Pausa |
@@ -104,7 +105,7 @@ tests/
 
 - [x] **Fase 0**: estructura del proyecto, ventana, bucle, renderer ASCII mostrando un mapa de prueba.
 - [x] **Fase 1**: movimiento del jugador en tiempo real, colisiones con muros y cámara que lo sigue.
-- [ ] **Fase 2**: estamina y rodar con invulnerabilidad.
+- [x] **Fase 2**: estamina y rodar con invulnerabilidad.
 - [ ] **Fase 3**: enemigo básico (patrulla, persigue, ataque con aviso previo), ataque del jugador, vida y muerte de enemigos.
 - [ ] **Fase 4**: almas, muerte del jugador y mancha de sangre.
 - [ ] **Fase 5**: hogueras (descanso, reaparición de enemigos, Estus) y menú de subida de nivel.
@@ -115,41 +116,71 @@ tests/
 
 ## Estado actual
 
-**Fases 0 y 1 terminadas.**
+**Fases 0, 1 y 2 terminadas.**
 
-Hecho en la Fase 0:
+Fase 0 — esqueleto:
 - Entorno virtual en `.venv/`, `requirements.txt` (pygame-ce 2.5.8, pytest 9.2.0) y `.gitignore`.
 - `main.py` + `game/game.py`: ventana de 960x540 y bucle a 60 FPS con `dt` en segundos,
   que se cierra con Esc o con la X.
-- `game/config.py`: tamaño de tile, FPS, ventana, rutas, controles y balance del jugador.
 - `game/render/`: interfaz `Renderer`, `AsciiRenderer` (glifos monoespaciados cacheados)
   y `ascii_theme.py` (glifos y colores por `sprite_id`).
 
-Hecho en la Fase 1:
+Fase 1 — movimiento:
 - `game/entities/entity.py`: clase base con posición continua en float (el centro de la
   caja), tamaño y `sprite_id`, con los bordes `left/right/top/bottom` como propiedades.
-- `game/entities/player.py`: el jugador nace en el `@` del mapa, se mueve con WASD a
-  `PLAYER_SPEED` px/s multiplicado por `dt` y normaliza la diagonal para que no sea
-  más rápida.
-- `Level.move_with_collision()`: colisión AABB contra los muros resolviendo **un eje
-  cada vez**, de modo que al empujar en diagonal contra una pared el jugador se desliza
-  por ella en vez de quedarse clavado. `Level` conoce ahora su `tile_size` y expone
-  `pixel_width`/`pixel_height` y `tile_center()`.
+- `Level.move_with_collision()`: colisión AABB resolviendo **un eje cada vez**, de modo
+  que al empujar en diagonal contra una pared el jugador se desliza en vez de clavarse.
+  `Level` conoce su `tile_size` y expone `pixel_width`/`pixel_height` y `tile_center()`.
 - `game/render/camera.py`: sigue al jugador y se recorta a los bordes del mapa; si el
-  mapa cabe entero en la ventana, lo centra. Es aritmética pura, sin pygame.
-- El renderer dibuja solo los tiles visibles y recibe la cámara; los enemigos pasan a
-  rojo en `ascii_theme.py`.
-- `data/levels/test_big.txt`: cuatro salas unidas por pasillos, 56x32 tiles
-  (1792x1024 px), más grande que la ventana. Es el nivel por defecto.
-  `data/levels/test.txt` se mantiene como la sala pequeña que usan los tests.
-- Tests: 34 en verde entre `tests/test_level.py`, `tests/test_player.py` y
-  `tests/test_camera.py`.
+  mapa cabe entero en la ventana, lo centra. Aritmética pura, sin pygame.
+- `data/levels/test_big.txt` (56x32 tiles, cuatro salas con pasillos) es el nivel por
+  defecto; `data/levels/test.txt` es la sala pequeña que usan los tests.
 
-Decisiones:
+Fase 2 — estamina, rodar y correr:
+- `game/systems/stats.py`: clase `Stamina`. Gastar nunca deja la barra en negativo y
+  reinicia el respiro; pasado `STAMINA_REGEN_DELAY` vuelve a subir, arrastrando el
+  tiempo sobrante del fotograma para no perder fracciones.
+- `game/entities/player.py`: estados explícitos en `PlayerState` (NORMAL, RUNNING,
+  ROLLING) y un `Intent(direction, roll, run)` que separa leer el teclado de decidir
+  qué pasa. El jugador guarda su `facing`.
+  - **Rodar**: cuesta estamina y se permite con cualquier resto mayor que 0. Distancia
+    y duración fijas (128 px = 4 casillas en 0,26 s), rumbo fijado al empezar —de las
+    teclas o, si no hay, de la mirada—, sin poder cambiarlo ni encadenar otro rodar, y
+    respetando las colisiones. `is_invulnerable` cubre la ventana de i-frames.
+    No va a velocidad constante: sigue una curva **ease-out** (`roll_progress()`), con
+    un pico inicial de 985 px/s (5,5x andar) que frena hasta pararse. Se mueve por
+    diferencia de progreso, no por velocidad x tiempo, así que el total es exactamente
+    `ROLL_DISTANCE` con cualquier `dt`.
+  - **Correr**: 1,5x la velocidad de andar a cambio de un goteo de estamina; al vaciarse
+    la barra se sigue andando a velocidad normal.
+- `game/ui/hud.py`: barra de estamina provisional abajo a la izquierda. El HUD decide
+  qué indicador y dónde, y llama a `renderer.draw_bar()`; los píxeles y los colores
+  siguen viviendo en `render/`.
+- El `sprite_id` del jugador cambia a `player_rolling` / `player_invulnerable`, así que
+  el color del rodar y de los i-frames se decide en `ascii_theme.py`.
+- El rodar se dispara con el evento KEYDOWN, no con la tecla mantenida.
+- Los i-frames se declaran como fracción de la duración del rodar
+  (`ROLL_IFRAME_*_FRACTION`), de modo que siguen siendo proporcionales si se reajusta.
+- Tests: 74 en verde (`test_level`, `test_player`, `test_camera`, `test_stamina`,
+  `test_player_actions`).
+
+Balance actual del movimiento (tile = 32 px):
+
+| | px/s | x andar |
+|---|---|---|
+| Andar | 180 | 1,00 |
+| Correr | 270 | 1,50 |
+| Rodar (media) | 492 | 2,74 |
+| Rodar (pico inicial) | 985 | 5,47 |
+
+Decisiones y pendientes:
 - La hoguera y los esqueletos siguen siendo decorado dibujado desde los datos del nivel;
   todavía no son entidades.
-- `level.py` importa `config` para conocer el tamaño de tile, así que arrastra pygame
-  de forma indirecta (por las constantes de teclas). Sigue sin dibujar nada.
-- Sigue sin haber máquina de estados; el bucle solo distingue "ejecutándose" o no.
+- `is_invulnerable` ya funciona, pero aún no hay nada que haga daño: se usará en la Fase 3.
+- La estamina se actualiza al principio del fotograma, antes de resolver la acción. Por
+  eso basta con que haya un resto —aunque sea el que acaba de regenerarse— para rodar.
+- `level.py` importa `config` para conocer el tamaño de tile, así que arrastra pygame de
+  forma indirecta (por las constantes de teclas). Sigue sin dibujar nada.
+- Sigue sin haber máquina de estados del juego; el bucle solo distingue "ejecutándose" o no.
 
-Siguiente paso: Fase 2 (estamina y rodar con invulnerabilidad).
+Siguiente paso: Fase 3 (enemigo básico, ataque del jugador, vida y muerte de enemigos).

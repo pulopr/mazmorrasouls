@@ -5,7 +5,7 @@ import math
 import pytest
 
 from game import config
-from game.entities.player import Player, normalize
+from game.entities.player import Intent, Player, normalize
 from game.world.level import Level
 
 # Sala abierta de 8x6 tiles (256x192 px con tiles de 32).
@@ -56,12 +56,12 @@ def test_diagonal_is_not_faster_than_straight():
 
     straight = make_player(level)
     start = (straight.x, straight.y)
-    straight.update(DT, (1, 0), level)
+    straight.update(DT, Intent(direction=(1, 0)), level)
     straight_distance = distance_moved(straight, start)
 
     diagonal = make_player(level)
     start = (diagonal.x, diagonal.y)
-    diagonal.update(DT, (1, 1), level)
+    diagonal.update(DT, Intent(direction=(1, 1)), level)
     diagonal_distance = distance_moved(diagonal, start)
 
     assert math.isclose(diagonal_distance, straight_distance)
@@ -75,12 +75,12 @@ def test_movement_scales_with_dt():
 
     slow = make_player(level)
     start = (slow.x, slow.y)
-    slow.update(DT, (1, 0), level)
+    slow.update(DT, Intent(direction=(1, 0)), level)
     short = distance_moved(slow, start)
 
     fast = make_player(level)
     start = (fast.x, fast.y)
-    fast.update(DT * 2, (1, 0), level)
+    fast.update(DT * 2, Intent(direction=(1, 0)), level)
 
     assert math.isclose(distance_moved(fast, start), short * 2)
 
@@ -89,7 +89,7 @@ def test_no_input_does_not_move():
     level = make_level()
     player = make_player(level)
     before = (player.x, player.y)
-    player.update(DT, (0, 0), level)
+    player.update(DT, Intent(direction=(0, 0)), level)
     assert (player.x, player.y) == before
 
 
@@ -107,7 +107,7 @@ def test_player_cannot_walk_through_walls(direction):
     player = make_player(level)
 
     for _ in range(120):
-        player.update(DT, direction, level)
+        player.update(DT, Intent(direction=direction), level)
 
     # Sigue dentro de la sala, sin solaparse con ningún muro.
     assert player.left >= level.tile_size
@@ -122,7 +122,7 @@ def test_player_stops_flush_against_the_wall():
     player = make_player(level)
 
     for _ in range(120):
-        player.update(DT, (1, 0), level)
+        player.update(DT, Intent(direction=(1, 0)), level)
 
     # El muro derecho empieza en la columna 7.
     assert math.isclose(player.right, 7 * level.tile_size)
@@ -137,7 +137,7 @@ def test_player_slides_along_a_wall_when_pushing_diagonally():
     blocked_x, free_y_start = player.x, player.y
 
     for _ in range(30):
-        player.update(DT, (1, 1), level)
+        player.update(DT, Intent(direction=(1, 1)), level)
 
     # El eje bloqueado no se mueve...
     assert math.isclose(player.x, blocked_x)
@@ -152,7 +152,7 @@ def test_sliding_is_not_blocked_by_the_corner_tile():
     player.right = 7 * level.tile_size
 
     for _ in range(120):
-        player.update(DT, (1, 1), level)
+        player.update(DT, Intent(direction=(1, 1)), level)
 
     # Acaba encajado en la esquina inferior derecha de la sala.
     assert math.isclose(player.right, 7 * level.tile_size)
@@ -175,7 +175,7 @@ def test_player_fits_through_a_one_tile_corridor():
     player.x, player.y = level.tile_center(3, 3)
 
     for _ in range(60):
-        player.update(DT, (0, -1), level)
+        player.update(DT, Intent(direction=(0, -1)), level)
 
     # Ha subido por el pasillo hasta el fondo.
     assert math.isclose(player.top, level.tile_size)
